@@ -16,6 +16,7 @@ import pytz
 import json
 import os
 import threading
+import schedule
 import time
 
 app = Flask(__name__)
@@ -323,5 +324,7 @@ if __name__ == '__main__':
         print("📥 Fazendo primeira atualização...")
         update_all_stocks()
     
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    # Configuração para produção
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port, debug=False)
 
