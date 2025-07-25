@@ -8,7 +8,7 @@ app = Flask(__name__)
 
 # Dados estáticos para carregamento rápido
 STATIC_DATA = {
-    "JBSS3": {
+    "JBSS32": {
         "name": "JBS S.A.",
         "sector": "Alimentos", 
         "current_price": 74.21,
@@ -73,38 +73,129 @@ def index():
     <title>BTS-B3 - Estratégia para Ações Brasileiras</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+            min-height: 100vh; 
+        }
         .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
         .header { text-align: center; color: white; margin-bottom: 30px; }
         .header h1 { font-size: 2.5rem; margin-bottom: 10px; }
         .header p { font-size: 1.2rem; opacity: 0.9; }
-        .info-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-bottom: 30px; }
-        .info-card { background: rgba(255,255,255,0.95); border-radius: 12px; padding: 20px; text-align: center; box-shadow: 0 8px 32px rgba(0,0,0,0.1); }
+        
+        .info-cards { 
+            display: grid; 
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); 
+            gap: 20px; 
+            margin-bottom: 30px; 
+        }
+        .info-card { 
+            background: rgba(255,255,255,0.95); 
+            border-radius: 12px; 
+            padding: 20px; 
+            text-align: center; 
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1); 
+        }
         .info-card h3 { color: #4a5568; margin-bottom: 10px; }
         .info-card p { color: #2d3748; font-weight: 600; }
-        .signals-section { background: rgba(255,255,255,0.95); border-radius: 12px; padding: 30px; box-shadow: 0 8px 32px rgba(0,0,0,0.1); }
-        .signals-title { text-align: center; color: #2d3748; margin-bottom: 30px; font-size: 1.8rem; }
-        .signals-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
-        .signal-card { border: 2px solid #e2e8f0; border-radius: 12px; padding: 20px; transition: all 0.3s ease; }
-        .signal-card:hover { transform: translateY(-2px); box-shadow: 0 4px 20px rgba(0,0,0,0.1); }
-        .signal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
-        .signal-symbol { font-size: 1.4rem; font-weight: bold; color: #2d3748; }
-        .signal-status { padding: 6px 12px; border-radius: 20px; font-weight: bold; font-size: 0.9rem; }
+        
+        .btn-update { 
+            background: #48bb78; 
+            color: white; 
+            border: none; 
+            padding: 12px 24px; 
+            border-radius: 8px; 
+            font-size: 1rem; 
+            cursor: pointer; 
+            margin: 20px auto; 
+            display: block; 
+            transition: background 0.3s ease;
+        }
+        .btn-update:hover { background: #38a169; }
+        
+        .signals-section { 
+            background: rgba(255,255,255,0.95); 
+            border-radius: 12px; 
+            padding: 30px; 
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1); 
+        }
+        .signals-title { 
+            text-align: center; 
+            color: #2d3748; 
+            margin-bottom: 30px; 
+            font-size: 1.8rem; 
+        }
+        
+        .signals-grid { 
+            display: grid; 
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); 
+            gap: 20px; 
+        }
+        .signal-card { 
+            border: 2px solid #e2e8f0; 
+            border-radius: 12px; 
+            padding: 20px; 
+            transition: all 0.3s ease; 
+            background: white;
+        }
+        .signal-card:hover { 
+            transform: translateY(-2px); 
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1); 
+        }
+        
+        .signal-header { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            margin-bottom: 15px; 
+        }
+        .signal-symbol { 
+            font-size: 1.4rem; 
+            font-weight: bold; 
+            color: #2d3748; 
+        }
+        .signal-status { 
+            padding: 6px 12px; 
+            border-radius: 20px; 
+            font-weight: bold; 
+            font-size: 0.9rem; 
+        }
         .signal-long { background: #c6f6d5; color: #22543d; }
         .signal-cash { background: #fed7d7; color: #742a2a; }
-        .signal-info { margin-bottom: 10px; }
+        
+        .signal-info { 
+            margin-bottom: 10px; 
+            line-height: 1.5;
+        }
         .signal-info strong { color: #4a5568; }
-        .action-badge { display: inline-block; padding: 8px 16px; border-radius: 20px; font-weight: bold; margin-top: 10px; }
+        
+        .action-badge { 
+            display: inline-block; 
+            padding: 8px 16px; 
+            border-radius: 20px; 
+            font-weight: bold; 
+            margin-top: 10px; 
+            font-size: 0.9rem;
+        }
         .action-buy { background: #c6f6d5; color: #22543d; }
         .action-hold { background: #faf089; color: #744210; }
         .action-out { background: #fed7d7; color: #742a2a; }
+        
         .variation { font-weight: bold; }
         .positive { color: #38a169; }
         .negative { color: #e53e3e; }
-        .update-info { text-align: center; margin-top: 30px; color: #718096; }
-        .btn-update { background: #48bb78; color: white; border: none; padding: 12px 24px; border-radius: 8px; font-size: 1rem; cursor: pointer; margin: 20px auto; display: block; }
-        .btn-update:hover { background: #38a169; }
-        @media (max-width: 768px) { .container { padding: 10px; } .header h1 { font-size: 2rem; } .signals-grid { grid-template-columns: 1fr; } }
+        
+        .update-info { 
+            text-align: center; 
+            margin-top: 30px; 
+            color: #718096; 
+        }
+        
+        @media (max-width: 768px) { 
+            .container { padding: 10px; } 
+            .header h1 { font-size: 2rem; } 
+            .signals-grid { grid-template-columns: 1fr; } 
+        }
     </style>
 </head>
 <body>
@@ -146,7 +237,7 @@ def index():
                     
                     <div class="signal-info">
                         <strong>{{ data.name }}</strong><br>
-                        <small>{{ data.sector }}</small>
+                        <small style="color: #718096;">{{ data.sector }}</small>
                     </div>
                     
                     <div class="signal-info">
@@ -176,9 +267,23 @@ def index():
         <div class="update-info">
             <p>📅 Última atualização: {{ update_time }}</p>
             <p>🔄 Dados baseados na análise de 25/07/2025</p>
-            <p>💡 Sistema automático em desenvolvimento</p>
+            <p>💡 Sistema automático - próxima atualização às 20h</p>
         </div>
     </div>
+    
+    <script>
+        // Debug: verificar se os dados estão sendo carregados
+        console.log('BTS-B3 carregado com sucesso');
+        console.log('Dados das ações:', {{ stocks|tojson }});
+        
+        // Verificar se há dados
+        const stocksData = {{ stocks|tojson }};
+        if (Object.keys(stocksData).length === 0) {
+            console.error('Nenhum dado de ação encontrado!');
+        } else {
+            console.log('Total de ações carregadas:', Object.keys(stocksData).length);
+        }
+    </script>
 </body>
 </html>
     """
@@ -191,11 +296,25 @@ def index():
 @app.route('/health')
 def health():
     """Health check endpoint"""
-    return {"status": "ok", "message": "BTS-B3 is running"}
+    return {"status": "ok", "message": "BTS-B3 is running", "stocks_count": len(STATIC_DATA)}
+
+@app.route('/debug')
+def debug():
+    """Debug endpoint para verificar dados"""
+    return {
+        "status": "ok",
+        "stocks_data": STATIC_DATA,
+        "stocks_count": len(STATIC_DATA),
+        "timestamp": datetime.now().isoformat()
+    }
 
 if __name__ == '__main__':
     try:
-        print("🚀 Iniciando BTS-B3 Simplificado...")
+        print("🚀 Iniciando BTS-B3...")
+        print(f"📊 Carregando {len(STATIC_DATA)} ações:")
+        for symbol, data in STATIC_DATA.items():
+            print(f"   • {symbol}: {data['name']} - {data['signal']} - {data['action_tomorrow']}")
+        
         port = int(os.environ.get('PORT', 5000))
         print(f"🌐 Servidor iniciando na porta {port}...")
         app.run(host='0.0.0.0', port=port, debug=False)
