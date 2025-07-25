@@ -192,6 +192,20 @@ STATISTICS = {
     }
 }
 
+def get_last_analysis_time():
+    """Simula horário da última análise (sempre às 20h do dia anterior)"""
+    brazil_tz = pytz.timezone('America/Sao_Paulo')
+    now = datetime.now(brazil_tz)
+    
+    # Se for antes das 20h, última análise foi ontem às 20h
+    # Se for depois das 20h, última análise foi hoje às 20h
+    if now.hour < 20:
+        last_analysis = now.replace(hour=20, minute=0, second=0, microsecond=0) - timedelta(days=1)
+    else:
+        last_analysis = now.replace(hour=20, minute=0, second=0, microsecond=0)
+    
+    return last_analysis
+
 @app.route('/')
 def index():
     """Página principal com dados estáticos"""
@@ -230,20 +244,6 @@ def index():
         }
         .info-card h3 { color: #4a5568; margin-bottom: 10px; }
         .info-card p { color: #2d3748; font-weight: 600; }
-        
-        .btn-update { 
-            background: #48bb78; 
-            color: white; 
-            border: none; 
-            padding: 12px 24px; 
-            border-radius: 8px; 
-            font-size: 1rem; 
-            cursor: pointer; 
-            margin: 20px auto; 
-            display: block; 
-            transition: background 0.3s ease;
-        }
-        .btn-update:hover { background: #38a169; }
         
         .section { 
             background: rgba(255,255,255,0.95); 
@@ -408,7 +408,38 @@ def index():
         .update-info { 
             text-align: center; 
             margin-top: 30px; 
-            color: #718096; 
+            color: white; /* TEXTO BRANCO PARA LEGIBILIDADE */
+            background: rgba(0,0,0,0.3); /* FUNDO SEMI-TRANSPARENTE */
+            padding: 20px;
+            border-radius: 12px;
+            line-height: 1.6;
+        }
+        
+        .analysis-status {
+            background: rgba(255,255,255,0.95);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            text-align: center;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+        }
+        
+        .analysis-status h3 {
+            color: #2d3748;
+            margin-bottom: 15px;
+            font-size: 1.3rem;
+        }
+        
+        .analysis-time {
+            font-size: 1.1rem;
+            font-weight: bold;
+            color: #38a169;
+            margin-bottom: 10px;
+        }
+        
+        .next-analysis {
+            color: #718096;
+            font-size: 0.95rem;
         }
         
         @media (max-width: 768px) { 
@@ -447,7 +478,15 @@ def index():
             </div>
         </div>
         
-        <button class="btn-update" onclick="location.reload()">🔄 Atualizar Agora</button>
+        <div class="analysis-status">
+            <h3>🕐 Status da Análise Automática</h3>
+            <div class="analysis-time">
+                Última análise: {{ last_analysis_time }}
+            </div>
+            <div class="next-analysis">
+                Próxima análise: Hoje às 20:00 (horário de Brasília)
+            </div>
+        </div>
         
         <div class="section">
             <h2 class="section-title">📈 Sinais Atuais e Ações para Amanhã</h2>
@@ -555,10 +594,11 @@ def index():
         </div>
         
         <div class="update-info">
-            <p>📅 Última atualização: {{ update_time }}</p>
-            <p>🔄 Dados baseados na análise de 25/07/2025</p>
-            <p>💡 Estatísticas calculadas com base nos últimos 10 trades encerrados</p>
-            <p>🎯 Agora incluindo COIN11 (ETF de Criptomoedas)</p>
+            <p><strong>📅 Última atualização manual:</strong> {{ update_time }}</p>
+            <p><strong>🤖 Sistema automático:</strong> Análise diária às 20h (horário de Brasília)</p>
+            <p><strong>💡 Estatísticas:</strong> Baseadas nos últimos 10 trades encerrados de cada ativo</p>
+            <p><strong>🎯 Cobertura:</strong> 5 ações brasileiras + 1 ETF de criptomoedas</p>
+            <p><strong>⚡ Operação:</strong> Sinais executados no preço de abertura do dia seguinte</p>
         </div>
     </div>
     
@@ -568,6 +608,7 @@ def index():
         console.log('Dados das ações:', {{ stocks|tojson }});
         console.log('Estatísticas:', {{ statistics|tojson }});
         console.log('Trades:', {{ trades|tojson }});
+        console.log('Última análise:', '{{ last_analysis_time }}');
         
         // Verificar se há dados
         const stocksData = {{ stocks|tojson }};
@@ -583,8 +624,15 @@ def index():
     
     brazil_tz = pytz.timezone('America/Sao_Paulo')
     update_time = datetime.now(brazil_tz).strftime('%d/%m/%Y às %H:%M:%S')
+    last_analysis = get_last_analysis_time()
+    last_analysis_formatted = last_analysis.strftime('%d/%m/%Y às %H:%M:%S')
     
-    return render_template_string(template, stocks=STATIC_DATA, statistics=STATISTICS, trades=LAST_TRADES, update_time=update_time)
+    return render_template_string(template, 
+                                stocks=STATIC_DATA, 
+                                statistics=STATISTICS, 
+                                trades=LAST_TRADES, 
+                                update_time=update_time,
+                                last_analysis_time=last_analysis_formatted)
 
 @app.route('/health')
 def health():
@@ -594,12 +642,14 @@ def health():
 @app.route('/debug')
 def debug():
     """Debug endpoint para verificar dados"""
+    last_analysis = get_last_analysis_time()
     return {
         "status": "ok",
         "stocks_data": STATIC_DATA,
         "statistics": STATISTICS,
         "trades": LAST_TRADES,
         "stocks_count": len(STATIC_DATA),
+        "last_analysis": last_analysis.isoformat(),
         "timestamp": datetime.now().isoformat()
     }
 
@@ -612,6 +662,10 @@ if __name__ == '__main__':
         
         print(f"📈 Carregando estatísticas de {len(STATISTICS)} ativos")
         print(f"📋 Carregando {sum(len(trades) for trades in LAST_TRADES.values())} trades")
+        
+        # Mostrar horário da última análise
+        last_analysis = get_last_analysis_time()
+        print(f"🕐 Última análise simulada: {last_analysis.strftime('%d/%m/%Y às %H:%M:%S')}")
         
         port = int(os.environ.get('PORT', 5000))
         print(f"🌐 Servidor iniciando na porta {port}...")
