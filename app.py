@@ -26,7 +26,7 @@ STOCKS = {
     'SBSP3': {'name': 'Sabesp', 'sector': 'Saneamento'},
     'SUZB3': {'name': 'Suzano', 'sector': 'Papel e Celulose'},
     'PETR4': {'name': 'Petrobras PN', 'sector': 'Petróleo'},
-    'BPAC11': {'name': 'BTG Pactual', 'sector': 'Bancos'}
+    'BBDC4': {'name': 'Bradesco PN', 'sector': 'Bancos'}
 }
 
 # Performance histórica do backtest (SEM CUSTOS)
@@ -67,7 +67,7 @@ HISTORICAL_PERFORMANCE = {
         'sharpe_ratio': 3.73,
         'total_trades': 24
     },
-    'BPAC11': {
+    'BBDC4': {
         'total_return': 299.6,
         'buy_hold_return': 23.3,
         'win_rate': 87.0,
