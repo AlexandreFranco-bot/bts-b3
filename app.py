@@ -153,7 +153,7 @@ def analyze_current_signal(df):
     if today_signal == 1:
         tomorrow_action = 'COMPRAR'
     elif today_signal == -1:
-        tomorrow_action = 'VENDER'
+        tomorrow_action = 'FICAR DE FORA'
     else:
         tomorrow_action = 'MANTER'
     
