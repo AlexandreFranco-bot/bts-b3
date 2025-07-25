@@ -1,0 +1,8 @@
+Flask==2.3.3
+pandas==2.0.3
+numpy==1.24.3
+scipy==1.11.1
+yfinance==0.2.18
+pytz==2023.3
+gunicorn==21.2.0
+
