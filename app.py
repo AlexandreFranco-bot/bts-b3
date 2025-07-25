@@ -7,11 +7,13 @@ import pytz
 app = Flask(__name__)
 
 # Dados estáticos para carregamento rápido (incluindo COIN11)
+# Agora com preços de fechamento da última análise
 STATIC_DATA = {
     "JBSS32": {
         "name": "JBS S.A.",
         "sector": "Alimentos", 
         "current_price": 74.21,
+        "closing_price": 74.21,  # Preço de fechamento da análise
         "signal": "CASH",
         "last_signal_date": "24/07/2025",
         "last_signal_price": 74.21,
@@ -22,6 +24,7 @@ STATIC_DATA = {
         "name": "Sabesp",
         "sector": "Saneamento",
         "current_price": 108.97,
+        "closing_price": 108.97,  # Preço de fechamento da análise
         "signal": "CASH", 
         "last_signal_date": "01/07/2025",
         "last_signal_price": 120.54,
@@ -32,6 +35,7 @@ STATIC_DATA = {
         "name": "Suzano",
         "sector": "Papel e Celulose",
         "current_price": 51.50,
+        "closing_price": 51.50,  # Preço de fechamento da análise
         "signal": "LONG",
         "last_signal_date": "15/07/2025", 
         "last_signal_price": 50.50,
@@ -42,6 +46,7 @@ STATIC_DATA = {
         "name": "Petrobras PN",
         "sector": "Petróleo",
         "current_price": 31.94,
+        "closing_price": 31.94,  # Preço de fechamento da análise
         "signal": "LONG",
         "last_signal_date": "22/07/2025",
         "last_signal_price": 31.35, 
@@ -52,6 +57,7 @@ STATIC_DATA = {
         "name": "BTG Pactual",
         "sector": "Bancos",
         "current_price": 39.46,
+        "closing_price": 39.46,  # Preço de fechamento da análise
         "signal": "CASH",
         "last_signal_date": "17/07/2025",
         "last_signal_price": 41.71,
@@ -62,6 +68,7 @@ STATIC_DATA = {
         "name": "Hashdex Nasdaq Crypto",
         "sector": "Criptomoedas",
         "current_price": 93.98,
+        "closing_price": 93.98,  # Preço de fechamento da análise
         "signal": "CASH",
         "last_signal_date": "23/07/2025",
         "last_signal_price": 93.29,
@@ -191,6 +198,9 @@ STATISTICS = {
         "avg_days": 17.6
     }
 }
+
+# Data da última análise (simulada)
+LAST_ANALYSIS_DATE = "25/07/2025 às 20:00:00"
 
 def get_last_analysis_time():
     """Simula horário da última análise (sempre às 20h do dia anterior)"""
@@ -405,6 +415,74 @@ def index():
         .return-positive { color: #38a169; font-weight: bold; }
         .return-negative { color: #e53e3e; font-weight: bold; }
         
+        .analysis-status {
+            background: rgba(255,255,255,0.95);
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 20px;
+            text-align: center;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+        }
+        
+        .analysis-status h3 {
+            color: #2d3748;
+            margin-bottom: 20px;
+            font-size: 1.4rem;
+        }
+        
+        .analysis-time {
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: #38a169;
+            margin-bottom: 15px;
+        }
+        
+        .next-analysis {
+            color: #718096;
+            font-size: 1rem;
+            margin-bottom: 20px;
+        }
+        
+        .closing-prices {
+            background: #f7fafc;
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 15px;
+        }
+        
+        .closing-prices h4 {
+            color: #2d3748;
+            margin-bottom: 15px;
+            font-size: 1.1rem;
+            text-align: center;
+        }
+        
+        .prices-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 10px;
+        }
+        
+        .price-item {
+            text-align: center;
+            padding: 8px;
+            background: white;
+            border-radius: 6px;
+            border: 1px solid #e2e8f0;
+        }
+        
+        .price-symbol {
+            font-weight: bold;
+            color: #4a5568;
+            font-size: 0.9rem;
+        }
+        
+        .price-value {
+            color: #2d3748;
+            font-size: 0.85rem;
+            margin-top: 2px;
+        }
+        
         .update-info { 
             text-align: center; 
             margin-top: 30px; 
@@ -415,33 +493,6 @@ def index():
             line-height: 1.6;
         }
         
-        .analysis-status {
-            background: rgba(255,255,255,0.95);
-            border-radius: 12px;
-            padding: 20px;
-            margin-bottom: 20px;
-            text-align: center;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
-        }
-        
-        .analysis-status h3 {
-            color: #2d3748;
-            margin-bottom: 15px;
-            font-size: 1.3rem;
-        }
-        
-        .analysis-time {
-            font-size: 1.1rem;
-            font-weight: bold;
-            color: #38a169;
-            margin-bottom: 10px;
-        }
-        
-        .next-analysis {
-            color: #718096;
-            font-size: 0.95rem;
-        }
-        
         @media (max-width: 768px) { 
             .container { padding: 10px; } 
             .header h1 { font-size: 2rem; } 
@@ -449,6 +500,7 @@ def index():
             .stats-metrics { grid-template-columns: 1fr; }
             .trades-table { font-size: 0.75rem; }
             .trades-table th, .trades-table td { padding: 4px 2px; }
+            .prices-grid { grid-template-columns: repeat(2, 1fr); }
         }
     </style>
 </head>
@@ -481,10 +533,22 @@ def index():
         <div class="analysis-status">
             <h3>🕐 Status da Análise Automática</h3>
             <div class="analysis-time">
-                Última análise: {{ last_analysis_time }}
+                Última análise: {{ last_analysis_date }}
             </div>
             <div class="next-analysis">
                 Próxima análise: Hoje às 20:00 (horário de Brasília)
+            </div>
+            
+            <div class="closing-prices">
+                <h4>💰 Preços de Fechamento da Última Análise</h4>
+                <div class="prices-grid">
+                    {% for symbol, data in stocks.items() %}
+                    <div class="price-item">
+                        <div class="price-symbol">{{ symbol }}</div>
+                        <div class="price-value">R$ {{ "%.2f"|format(data.closing_price) }}</div>
+                    </div>
+                    {% endfor %}
+                </div>
             </div>
         </div>
         
@@ -507,7 +571,7 @@ def index():
                     </div>
                     
                     <div class="signal-info">
-                        <strong>Preço Atual:</strong> R$ {{ "%.2f"|format(data.current_price) }}
+                        <strong>Preço de Fechamento:</strong> R$ {{ "%.2f"|format(data.closing_price) }}
                     </div>
                     
                     <div class="signal-info">
@@ -599,6 +663,7 @@ def index():
             <p><strong>💡 Estatísticas:</strong> Baseadas nos últimos 10 trades encerrados de cada ativo</p>
             <p><strong>🎯 Cobertura:</strong> 5 ações brasileiras + 1 ETF de criptomoedas</p>
             <p><strong>⚡ Operação:</strong> Sinais executados no preço de abertura do dia seguinte</p>
+            <p><strong>💰 Preços:</strong> Valores de fechamento utilizados na análise de {{ last_analysis_date.split(' ')[0] }}</p>
         </div>
     </div>
     
@@ -608,7 +673,7 @@ def index():
         console.log('Dados das ações:', {{ stocks|tojson }});
         console.log('Estatísticas:', {{ statistics|tojson }});
         console.log('Trades:', {{ trades|tojson }});
-        console.log('Última análise:', '{{ last_analysis_time }}');
+        console.log('Última análise:', '{{ last_analysis_date }}');
         
         // Verificar se há dados
         const stocksData = {{ stocks|tojson }};
@@ -617,6 +682,12 @@ def index():
         } else {
             console.log('Total de ativos carregados:', Object.keys(stocksData).length);
         }
+        
+        // Mostrar preços de fechamento
+        console.log('Preços de fechamento da análise:');
+        Object.entries(stocksData).forEach(([symbol, data]) => {
+            console.log(`${symbol}: R$ ${data.closing_price.toFixed(2)}`);
+        });
     </script>
 </body>
 </html>
@@ -624,15 +695,13 @@ def index():
     
     brazil_tz = pytz.timezone('America/Sao_Paulo')
     update_time = datetime.now(brazil_tz).strftime('%d/%m/%Y às %H:%M:%S')
-    last_analysis = get_last_analysis_time()
-    last_analysis_formatted = last_analysis.strftime('%d/%m/%Y às %H:%M:%S')
     
     return render_template_string(template, 
                                 stocks=STATIC_DATA, 
                                 statistics=STATISTICS, 
                                 trades=LAST_TRADES, 
                                 update_time=update_time,
-                                last_analysis_time=last_analysis_formatted)
+                                last_analysis_date=LAST_ANALYSIS_DATE)
 
 @app.route('/health')
 def health():
@@ -642,14 +711,13 @@ def health():
 @app.route('/debug')
 def debug():
     """Debug endpoint para verificar dados"""
-    last_analysis = get_last_analysis_time()
     return {
         "status": "ok",
         "stocks_data": STATIC_DATA,
         "statistics": STATISTICS,
         "trades": LAST_TRADES,
         "stocks_count": len(STATIC_DATA),
-        "last_analysis": last_analysis.isoformat(),
+        "last_analysis_date": LAST_ANALYSIS_DATE,
         "timestamp": datetime.now().isoformat()
     }
 
@@ -659,13 +727,11 @@ if __name__ == '__main__':
         print(f"📊 Carregando {len(STATIC_DATA)} ativos:")
         for symbol, data in STATIC_DATA.items():
             print(f"   • {symbol}: {data['name']} - {data['signal']} - {data['action_tomorrow']}")
+            print(f"     Preço de fechamento: R$ {data['closing_price']:.2f}")
         
         print(f"📈 Carregando estatísticas de {len(STATISTICS)} ativos")
         print(f"📋 Carregando {sum(len(trades) for trades in LAST_TRADES.values())} trades")
-        
-        # Mostrar horário da última análise
-        last_analysis = get_last_analysis_time()
-        print(f"🕐 Última análise simulada: {last_analysis.strftime('%d/%m/%Y às %H:%M:%S')}")
+        print(f"🕐 Data da última análise: {LAST_ANALYSIS_DATE}")
         
         port = int(os.environ.get('PORT', 5000))
         print(f"🌐 Servidor iniciando na porta {port}...")
