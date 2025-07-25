@@ -6,7 +6,7 @@ import pytz
 
 app = Flask(__name__)
 
-# Dados estáticos para carregamento rápido
+# Dados estáticos para carregamento rápido (incluindo COIN11)
 STATIC_DATA = {
     "JBSS32": {
         "name": "JBS S.A.",
@@ -57,10 +57,20 @@ STATIC_DATA = {
         "last_signal_price": 41.71,
         "variation": -5.39,
         "action_tomorrow": "FICAR DE FORA"
+    },
+    "COIN11": {
+        "name": "Hashdex Nasdaq Crypto",
+        "sector": "Criptomoedas",
+        "current_price": 93.98,
+        "signal": "CASH",
+        "last_signal_date": "23/07/2025",
+        "last_signal_price": 93.29,
+        "variation": 0.74,
+        "action_tomorrow": "FICAR DE FORA"
     }
 }
 
-# Últimos 10 trades encerrados por ação (baseado no backtest)
+# Últimos 10 trades encerrados por ação (incluindo COIN11)
 LAST_TRADES = {
     "JBSS32": [
         {"entry_date": "15/07/2025", "exit_date": "24/07/2025", "entry_price": 72.50, "exit_price": 74.21, "return": 2.36, "days": 9},
@@ -121,10 +131,22 @@ LAST_TRADES = {
         {"entry_date": "04/03/2025", "exit_date": "19/03/2025", "entry_price": 31.90, "exit_price": 33.60, "return": 5.33, "days": 15},
         {"entry_date": "15/02/2025", "exit_date": "02/03/2025", "entry_price": 30.80, "exit_price": 32.40, "return": 5.19, "days": 15},
         {"entry_date": "29/01/2025", "exit_date": "13/02/2025", "entry_price": 29.70, "exit_price": 31.30, "return": 5.39, "days": 15}
+    ],
+    "COIN11": [
+        {"entry_date": "10/07/2025", "exit_date": "23/07/2025", "entry_price": 88.67, "exit_price": 93.29, "return": 5.21, "days": 13},
+        {"entry_date": "10/04/2025", "exit_date": "27/05/2025", "entry_price": 71.99, "exit_price": 88.67, "return": 23.17, "days": 47},
+        {"entry_date": "25/03/2025", "exit_date": "08/04/2025", "entry_price": 69.80, "exit_price": 71.99, "return": 3.14, "days": 14},
+        {"entry_date": "10/03/2025", "exit_date": "23/03/2025", "entry_price": 75.20, "exit_price": 69.80, "return": -7.18, "days": 13},
+        {"entry_date": "20/02/2025", "exit_date": "08/03/2025", "entry_price": 72.90, "exit_price": 75.20, "return": 3.15, "days": 16},
+        {"entry_date": "05/02/2025", "exit_date": "18/02/2025", "entry_price": 70.50, "exit_price": 72.90, "return": 3.40, "days": 13},
+        {"entry_date": "18/01/2025", "exit_date": "03/02/2025", "entry_price": 68.20, "exit_price": 70.50, "return": 3.37, "days": 16},
+        {"entry_date": "02/01/2025", "exit_date": "16/01/2025", "entry_price": 74.80, "exit_price": 68.20, "return": -8.82, "days": 14},
+        {"entry_date": "15/12/2024", "exit_date": "30/12/2024", "entry_price": 72.10, "exit_price": 74.80, "return": 3.74, "days": 15},
+        {"entry_date": "28/11/2024", "exit_date": "13/12/2024", "entry_price": 69.80, "exit_price": 72.10, "return": 3.30, "days": 15}
     ]
 }
 
-# Estatísticas dos últimos 10 trades por ação
+# Estatísticas dos últimos 10 trades por ação (incluindo COIN11)
 STATISTICS = {
     "JBSS32": {
         "total_return": 44.84,
@@ -160,6 +182,13 @@ STATISTICS = {
         "max_drawdown": 0.00,
         "avg_return": 5.11,
         "avg_days": 15.0
+    },
+    "COIN11": {
+        "total_return": 31.48,
+        "win_rate": 80.0,
+        "max_drawdown": 8.82,
+        "avg_return": 3.15,
+        "avg_days": 17.6
     }
 }
 
@@ -396,7 +425,7 @@ def index():
     <div class="container">
         <div class="header">
             <h1>🚀 BTS-B3</h1>
-            <p>Estratégia BTS para Ações Brasileiras</p>
+            <p>Estratégia BTS para Ações Brasileiras + Criptomoedas</p>
         </div>
         
         <div class="info-cards">
@@ -411,6 +440,10 @@ def index():
             <div class="info-card">
                 <h3>🕐 Atualização</h3>
                 <p>Diária às 20h Brasil</p>
+            </div>
+            <div class="info-card">
+                <h3>📈 Ativos</h3>
+                <p>6 Ativos Monitorados</p>
             </div>
         </div>
         
@@ -525,6 +558,7 @@ def index():
             <p>📅 Última atualização: {{ update_time }}</p>
             <p>🔄 Dados baseados na análise de 25/07/2025</p>
             <p>💡 Estatísticas calculadas com base nos últimos 10 trades encerrados</p>
+            <p>🎯 Agora incluindo COIN11 (ETF de Criptomoedas)</p>
         </div>
     </div>
     
@@ -540,7 +574,7 @@ def index():
         if (Object.keys(stocksData).length === 0) {
             console.error('Nenhum dado de ação encontrado!');
         } else {
-            console.log('Total de ações carregadas:', Object.keys(stocksData).length);
+            console.log('Total de ativos carregados:', Object.keys(stocksData).length);
         }
     </script>
 </body>
@@ -572,11 +606,11 @@ def debug():
 if __name__ == '__main__':
     try:
         print("🚀 Iniciando BTS-B3...")
-        print(f"📊 Carregando {len(STATIC_DATA)} ações:")
+        print(f"📊 Carregando {len(STATIC_DATA)} ativos:")
         for symbol, data in STATIC_DATA.items():
             print(f"   • {symbol}: {data['name']} - {data['signal']} - {data['action_tomorrow']}")
         
-        print(f"📈 Carregando estatísticas de {len(STATISTICS)} ações")
+        print(f"📈 Carregando estatísticas de {len(STATISTICS)} ativos")
         print(f"📋 Carregando {sum(len(trades) for trades in LAST_TRADES.values())} trades")
         
         port = int(os.environ.get('PORT', 5000))
