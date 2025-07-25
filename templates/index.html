@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BTS-B3 v2.0 | Estratégia BTS Automática</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        .main-container {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            margin: 20px auto;
+            padding: 30px;
+            max-width: 1400px;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+            padding-bottom: 20px;
+            border-bottom: 3px solid #667eea;
+        }
+        
+        .header h1 {
+            color: #2c3e50;
+            font-weight: 700;
+            margin-bottom: 10px;
+        }
+        
+        .header .version {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 0.9em;
+            font-weight: 600;
+            display: inline-block;
+            margin-left: 10px;
+        }
+        
+        .update-info {
+            background: #e8f4fd;
+            border: 2px solid #b3d9ff;
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+        
+        .update-info h4 {
+            color: #0066cc;
+            margin-bottom: 15px;
+        }
+        
+        .update-info .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+        
+        .info-item {
+            background: white;
+            padding: 10px 15px;
+            border-radius: 10px;
+            border: 1px solid #cce7ff;
+        }
+        
+        .info-item strong {
+            color: #0066cc;
+        }
+        
+        .btn-update-now {
+            background: linear-gradient(45deg, #28a745, #20c997);
+            border: none;
+            border-radius: 10px;
+            padding: 10px 25px;
+            font-weight: 600;
+            color: white;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-update-now:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(40, 167, 69, 0.3);
+            color: white;
+        }
+        
+        .signals-table {
+            background: white;
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+        }
+        
+        .signals-table h3 {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            padding: 20px;
+            margin: 0;
+            font-weight: 600;
+        }
+        
+        .table {
+            margin: 0;
+        }
+        
+        .table th {
+            background: #f8f9fa;
+            border: none;
+            font-weight: 600;
+            color: #2c3e50;
+            padding: 15px;
+        }
+        
+        .table td {
+            padding: 15px;
+            vertical-align: middle;
+            border-color: #e9ecef;
+        }
+        
+        .signal-buy {
+            background: #d4edda;
+            color: #155724;
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-weight: 600;
+            font-size: 0.9em;
+        }
+        
+        .signal-sell {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-weight: 600;
+            font-size: 0.9em;
+        }
+        
+        .action-buy {
+            background: #d1ecf1;
+            color: #0c5460;
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-weight: 600;
+            font-size: 0.9em;
+        }
+        
+        .action-sell {
+            background: #fff3cd;
+            color: #856404;
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-weight: 600;
+            font-size: 0.9em;
+        }
+        
+        .action-hold {
+            background: #e2e3e5;
+            color: #383d41;
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-weight: 600;
+            font-size: 0.9em;
+        }
+        
+        .position-long {
+            background: #d1ecf1;
+            color: #0c5460;
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-weight: 600;
+            font-size: 0.9em;
+        }
+        
+        .position-cash {
+            background: #fff3cd;
+            color: #856404;
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-weight: 600;
+            font-size: 0.9em;
+        }
+        
+        .variation-positive {
+            color: #28a745;
+            font-weight: 600;
+        }
+        
+        .variation-negative {
+            color: #dc3545;
+            font-weight: 600;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-top: 30px;
+        }
+        
+        .stats-card {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            border-top: 4px solid #667eea;
+        }
+        
+        .stats-card h4 {
+            color: #2c3e50;
+            margin-bottom: 20px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+        }
+        
+        .stats-card h4 i {
+            margin-right: 10px;
+            color: #667eea;
+        }
+        
+        .stats-table {
+            width: 100%;
+        }
+        
+        .stats-table th,
+        .stats-table td {
+            padding: 8px 12px;
+            text-align: left;
+            border-bottom: 1px solid #e9ecef;
+        }
+        
+        .stats-table th {
+            background: #f8f9fa;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+        
+        .alert {
+            border-radius: 10px;
+            border: none;
+            padding: 15px 20px;
+            margin-bottom: 20px;
+        }
+        
+        .footer {
+            text-align: center;
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 2px solid #e9ecef;
+            color: #7f8c8d;
+        }
+        
+        @media (max-width: 768px) {
+            .main-container {
+                margin: 10px;
+                padding: 20px;
+            }
+            
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .table-responsive {
+                font-size: 0.9em;
+            }
+            
+            .info-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="main-container">
+            <!-- Header -->
+            <div class="header">
+                <h1>
+                    <i class="fas fa-chart-line"></i> BTS-B3
+                    <span class="version">v2.0 AUTO</span>
+                </h1>
+                <p>Estratégia BTS Automática para Ações Brasileiras</p>
+                <small class="text-muted">JBSS3 • SBSP3 • SUZB3 • PETR4 • BPAC11</small>
+            </div>
+
+            <!-- Informações de Atualização -->
+            <div class="update-info">
+                <h4><i class="fas fa-robot"></i> Sistema Automático</h4>
+                <p>Dados atualizados automaticamente do Yahoo Finance • Entrada/saída no preço de abertura do dia seguinte</p>
+                
+                <div class="info-grid">
+                    <div class="info-item">
+                        <strong>Última Atualização:</strong><br>
+                        {{ last_update }}
+                    </div>
+                    <div class="info-item">
+                        <strong>Próxima Atualização:</strong><br>
+                        {{ next_update }}
+                    </div>
+                    <div class="info-item">
+                        <strong>Fonte de Dados:</strong><br>
+                        Yahoo Finance
+                    </div>
+                    <div class="info-item">
+                        <strong>Operação:</strong><br>
+                        Abertura do dia seguinte
+                    </div>
+                </div>
+                
+                <div class="mt-3">
+                    <button class="btn btn-update-now" onclick="updateNow()">
+                        <i class="fas fa-sync-alt"></i> Atualizar Agora
+                    </button>
+                </div>
+            </div>
+
+            <!-- Alertas -->
+            <div id="alertContainer"></div>
+
+            <!-- Tabela de Sinais e Ações -->
+            <div class="signals-table">
+                <h3><i class="fas fa-signal"></i> Sinais Atuais e Ações para Amanhã</h3>
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Ação</th>
+                                <th>Empresa</th>
+                                <th>Último Sinal</th>
+                                <th>Data</th>
+                                <th>Preço do Sinal</th>
+                                <th>Preço Atual</th>
+                                <th>Variação</th>
+                                <th>Posição</th>
+                                <th><strong>Ação Amanhã</strong></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for signal in signals_data %}
+                            <tr>
+                                <td><strong>{{ signal.stock }}</strong></td>
+                                <td>{{ signal.name }}</td>
+                                <td>
+                                    <span class="{% if signal.last_signal == 'COMPRA' %}signal-buy{% else %}signal-sell{% endif %}">
+                                        {% if signal.last_signal == 'COMPRA' %}
+                                            <i class="fas fa-arrow-up"></i> COMPRA
+                                        {% else %}
+                                            <i class="fas fa-arrow-down"></i> VENDA
+                                        {% endif %}
+                                    </span>
+                                </td>
+                                <td>{{ signal.signal_date }}</td>
+                                <td><strong>{{ signal.signal_price }}</strong></td>
+                                <td><strong>{{ signal.current_price }}</strong></td>
+                                <td>
+                                    <span class="{% if signal.variation.startswith('+') %}variation-positive{% else %}variation-negative{% endif %}">
+                                        {{ signal.variation }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <span class="{% if signal.position == 'LONG' %}position-long{% else %}position-cash{% endif %}">
+                                        {% if signal.position == 'LONG' %}
+                                            <i class="fas fa-chart-line"></i> LONG
+                                        {% else %}
+                                            <i class="fas fa-dollar-sign"></i> CASH
+                                        {% endif %}
+                                    </span>
+                                </td>
+                                <td>
+                                    <span class="{% if signal.tomorrow_action == 'COMPRAR' %}action-buy{% elif signal.tomorrow_action == 'VENDER' %}action-sell{% else %}action-hold{% endif %}">
+                                        {% if signal.tomorrow_action == 'COMPRAR' %}
+                                            <i class="fas fa-shopping-cart"></i> COMPRAR
+                                        {% elif signal.tomorrow_action == 'VENDER' %}
+                                            <i class="fas fa-hand-holding-usd"></i> VENDER
+                                        {% else %}
+                                            <i class="fas fa-pause"></i> MANTER
+                                        {% endif %}
+                                    </span>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Estatísticas Históricas por Ação -->
+            <div class="stats-grid">
+                {% for stock, info in stocks.items() %}
+                <div class="stats-card">
+                    <h4><i class="fas fa-chart-bar"></i> {{ stock }} - {{ info.name }}</h4>
+                    <table class="stats-table">
+                        <tr>
+                            <th>Métrica</th>
+                            <th>Valor</th>
+                        </tr>
+                        <tr>
+                            <td>Retorno Médio por Trade</td>
+                            <td><strong>{{ stats[stock].avg_return }}</strong></td>
+                        </tr>
+                        <tr>
+                            <td>Taxa de Acerto</td>
+                            <td><strong>{{ stats[stock].win_rate }}</strong></td>
+                        </tr>
+                        <tr>
+                            <td>Retorno Total BTS</td>
+                            <td><strong class="text-success">{{ stats[stock].total_return }}</strong></td>
+                        </tr>
+                        <tr>
+                            <td>Buy & Hold</td>
+                            <td><strong class="text-info">{{ stats[stock].buy_hold_return }}</strong></td>
+                        </tr>
+                        <tr>
+                            <td>Outperformance</td>
+                            <td><strong class="text-primary">{{ stats[stock].outperformance }}</strong></td>
+                        </tr>
+                        <tr>
+                            <td>Drawdown Máximo</td>
+                            <td><strong class="text-warning">{{ stats[stock].max_drawdown }}</strong></td>
+                        </tr>
+                        <tr>
+                            <td>Sharpe Ratio</td>
+                            <td><strong>{{ stats[stock].sharpe_ratio }}</strong></td>
+                        </tr>
+                        <tr>
+                            <td>Total de Trades</td>
+                            <td><strong>{{ stats[stock].total_trades }}</strong></td>
+                        </tr>
+                    </table>
+                </div>
+                {% endfor %}
+            </div>
+
+            <!-- Footer -->
+            <div class="footer">
+                <p><i class="fas fa-info-circle"></i> BTS-B3 v2.0 | Sistema Automático com Yahoo Finance</p>
+                <small>
+                    <strong>Importante:</strong> Entrada/saída sempre no preço bruto de abertura do dia seguinte ao sinal • 
+                    Atualização automática às 20h Brasil • 
+                    Dados com delay de 15 minutos
+                </small>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Função para mostrar alertas
+        function showAlert(message, type = 'info') {
+            const alertContainer = document.getElementById('alertContainer');
+            const alertDiv = document.createElement('div');
+            alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+            alertDiv.innerHTML = `
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            `;
+            alertContainer.appendChild(alertDiv);
+            
+            // Auto-remover após 5 segundos
+            setTimeout(() => {
+                if (alertDiv.parentNode) {
+                    alertDiv.remove();
+                }
+            }, 5000);
+        }
+
+        // Função para atualizar dados agora
+        function updateNow() {
+            const button = document.querySelector('.btn-update-now');
+            const originalText = button.innerHTML;
+            
+            // Mostrar loading
+            button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Atualizando...';
+            button.disabled = true;
+            
+            fetch('/update_now')
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showAlert(`✅ ${data.message} (${data.stocks_updated} ações atualizadas)`, 'success');
+                    
+                    // Recarregar página após 2 segundos
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 2000);
+                } else {
+                    showAlert(`❌ ${data.message}`, 'danger');
+                }
+            })
+            .catch(error => {
+                showAlert('❌ Erro ao atualizar dados: ' + error.message, 'danger');
+            })
+            .finally(() => {
+                // Restaurar botão
+                button.innerHTML = originalText;
+                button.disabled = false;
+            });
+        }
+
+        // Auto-refresh a cada 5 minutos (opcional)
+        setInterval(() => {
+            const now = new Date();
+            // Só auto-refresh entre 19:55 e 20:05 (horário de atualização)
+            if (now.getHours() === 19 && now.getMinutes() >= 55) {
+                window.location.reload();
+            } else if (now.getHours() === 20 && now.getMinutes() <= 5) {
+                window.location.reload();
+            }
+        }, 300000); // 5 minutos
+    </script>
+</body>
+</html>
+
