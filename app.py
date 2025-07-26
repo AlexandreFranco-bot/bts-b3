@@ -13,9 +13,9 @@ app = Flask(__name__)
 # Cache global para dados
 DATA_CACHE = {
     'signals': [],
-    'last_update': None,
+    'last_analysis': None,  # Data/hora da última análise real
     'prices': {},
-    'analysis_time': None
+    'analysis_data': None
 }
 
 # Configuração dos ativos
@@ -41,7 +41,6 @@ STATS_DATA = {
 def get_yahoo_price(symbol):
     """Buscar preço atual do Yahoo Finance via API"""
     try:
-        # Usar API alternativa mais simples
         url = f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}"
         headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
         
@@ -69,34 +68,68 @@ def get_fallback_prices():
         'COIN11': 92.91
     }
 
-def update_prices():
-    """Atualizar preços de todos os ativos"""
-    print("🔄 Atualizando preços...")
+def is_market_closed():
+    """Verificar se o mercado está fechado (após 18h)"""
+    now = datetime.now(pytz.timezone('America/Sao_Paulo'))
+    return now.hour >= 18
+
+def perform_daily_analysis():
+    """Realizar análise diária após o fechamento do mercado"""
+    now = datetime.now(pytz.timezone('America/Sao_Paulo'))
     
+    # Só realizar análise após 20h
+    if now.hour < 20:
+        print(f"⏰ Análise agendada para após 20h. Hora atual: {now.hour}h")
+        return
+    
+    print(f"📊 Iniciando análise diária às {now.strftime('%d/%m/%Y às %H:%M:%S')}")
+    
+    # Buscar preços de fechamento
     updated_prices = {}
     fallback_prices = get_fallback_prices()
     
     for ticker, config in ASSETS_CONFIG.items():
-        # Tentar buscar preço atual
-        current_price = get_yahoo_price(config['yahoo_symbol'])
+        # Buscar preço de fechamento
+        closing_price = get_yahoo_price(config['yahoo_symbol'])
         
-        if current_price is None:
+        if closing_price is None:
             # Usar preço de fallback
-            current_price = fallback_prices.get(ticker, config['signal_price'])
-            print(f"⚠️ Usando fallback para {ticker}: {current_price:.2f}")
+            closing_price = fallback_prices.get(ticker, config['signal_price'])
+            print(f"⚠️ Usando fallback para {ticker}: {closing_price:.2f}")
         else:
-            print(f"✅ {ticker}: {current_price:.2f}")
+            print(f"✅ {ticker} (fechamento): {closing_price:.2f}")
         
-        updated_prices[ticker] = current_price
+        updated_prices[ticker] = closing_price
     
-    # Atualizar cache global
+    # Atualizar cache com dados da análise
     DATA_CACHE['prices'] = updated_prices
-    DATA_CACHE['last_update'] = datetime.now(pytz.timezone('America/Sao_Paulo'))
+    DATA_CACHE['last_analysis'] = now
     
-    # Atualizar sinais
-    update_signals()
+    # Gerar sinais baseados nos preços de fechamento
+    generate_signals()
     
-    print(f"✅ Preços atualizados às {DATA_CACHE['last_update'].strftime('%H:%M:%S')}")
+    print(f"✅ Análise diária concluída às {now.strftime('%H:%M:%S')}")
+
+def generate_signals():
+    """Gerar sinais baseado nos preços de fechamento"""
+    signals = []
+    
+    for ticker, config in ASSETS_CONFIG.items():
+        closing_price = DATA_CACHE['prices'].get(ticker, config['signal_price'])
+        signal_price = config['signal_price']
+        variation = calculate_variation(signal_price, closing_price)
+        action = get_action_recommendation(config['position'], variation)
+        
+        signals.append({
+            'ticker': ticker,
+            'signal_price': signal_price,
+            'current_price': closing_price,
+            'variation': variation,
+            'position': config['position'],
+            'action': action
+        })
+    
+    DATA_CACHE['signals'] = signals
 
 def calculate_variation(signal_price, current_price):
     """Calcular variação percentual"""
@@ -109,35 +142,22 @@ def get_action_recommendation(position, variation):
     else:
         return '🔴 FICAR DE FORA'
 
-def update_signals():
-    """Atualizar sinais baseado nos preços atuais"""
-    signals = []
+def initialize_data():
+    """Inicializar dados na primeira execução"""
+    # Definir última análise como ontem às 20h se não houver dados
+    if DATA_CACHE['last_analysis'] is None:
+        yesterday = datetime.now(pytz.timezone('America/Sao_Paulo')) - timedelta(days=1)
+        DATA_CACHE['last_analysis'] = yesterday.replace(hour=20, minute=0, second=0, microsecond=0)
     
-    for ticker, config in ASSETS_CONFIG.items():
-        current_price = DATA_CACHE['prices'].get(ticker, config['signal_price'])
-        signal_price = config['signal_price']
-        variation = calculate_variation(signal_price, current_price)
-        action = get_action_recommendation(config['position'], variation)
-        
-        signals.append({
-            'ticker': ticker,
-            'signal_price': signal_price,
-            'current_price': current_price,
-            'variation': variation,
-            'position': config['position'],
-            'action': action
-        })
-    
-    DATA_CACHE['signals'] = signals
-    DATA_CACHE['analysis_time'] = datetime.now(pytz.timezone('America/Sao_Paulo'))
+    # Inicializar preços e sinais
+    fallback_prices = get_fallback_prices()
+    DATA_CACHE['prices'] = fallback_prices
+    generate_signals()
 
 def run_scheduler():
     """Executar agendador em thread separada"""
-    # Agendar atualizações
-    schedule.every(5).minutes.do(update_prices)  # A cada 5 minutos
-    schedule.every().day.at("09:00").do(update_prices)  # 9h da manhã
-    schedule.every().day.at("15:00").do(update_prices)  # 3h da tarde
-    schedule.every().day.at("18:00").do(update_prices)  # 6h da tarde
+    # Agendar análise diária às 20h
+    schedule.every().day.at("20:00").do(perform_daily_analysis)
     
     while True:
         schedule.run_pending()
@@ -145,41 +165,49 @@ def run_scheduler():
 
 @app.route('/')
 def index():
-    # Se não há dados no cache, atualizar agora
-    if not DATA_CACHE['signals'] or not DATA_CACHE['last_update']:
-        update_prices()
+    # Se não há dados inicializados, inicializar
+    if not DATA_CACHE['signals'] or DATA_CACHE['last_analysis'] is None:
+        initialize_data()
     
-    # Verificar se dados estão muito antigos (mais de 30 minutos)
-    if DATA_CACHE['last_update']:
-        time_diff = datetime.now(pytz.timezone('America/Sao_Paulo')) - DATA_CACHE['last_update']
-        if time_diff.total_seconds() > 1800:  # 30 minutos
-            update_prices()
+    # Verificar se precisa fazer análise (caso tenha perdido o horário)
+    now = datetime.now(pytz.timezone('America/Sao_Paulo'))
+    if DATA_CACHE['last_analysis']:
+        # Se a última análise foi há mais de 24 horas e já passou das 20h
+        time_diff = now - DATA_CACHE['last_analysis']
+        if time_diff.total_seconds() > 86400 and now.hour >= 20:  # 24 horas
+            perform_daily_analysis()
     
-    last_analysis = DATA_CACHE['analysis_time'].strftime('%d/%m/%Y às %H:%M:%S') if DATA_CACHE['analysis_time'] else "Carregando..."
+    # Formatar data da última análise
+    if DATA_CACHE['last_analysis']:
+        last_analysis_str = DATA_CACHE['last_analysis'].strftime('%d/%m/%Y às %H:%M:%S')
+    else:
+        last_analysis_str = "Aguardando primeira análise (20h)"
     
     return render_template_string(HTML_TEMPLATE, 
                                 signals=DATA_CACHE['signals'],
                                 stats=STATS_DATA,
-                                last_analysis=last_analysis)
+                                last_analysis=last_analysis_str)
 
-@app.route('/api/update')
-def api_update():
-    """Endpoint para forçar atualização"""
-    update_prices()
-    return jsonify({
-        'status': 'success',
-        'last_update': DATA_CACHE['last_update'].isoformat() if DATA_CACHE['last_update'] else None,
-        'prices': DATA_CACHE['prices']
-    })
+@app.route('/api/analysis')
+def api_analysis():
+    """Endpoint para forçar análise (apenas se após 20h)"""
+    now = datetime.now(pytz.timezone('America/Sao_Paulo'))
+    if now.hour >= 20:
+        perform_daily_analysis()
+        return jsonify({'status': 'success', 'message': 'Análise realizada'})
+    else:
+        return jsonify({'status': 'error', 'message': f'Análise só pode ser feita após 20h. Hora atual: {now.hour}h'})
 
 @app.route('/api/status')
 def api_status():
     """Endpoint para verificar status"""
+    now = datetime.now(pytz.timezone('America/Sao_Paulo'))
     return jsonify({
         'status': 'online',
-        'last_update': DATA_CACHE['last_update'].isoformat() if DATA_CACHE['last_update'] else None,
+        'last_analysis': DATA_CACHE['last_analysis'].isoformat() if DATA_CACHE['last_analysis'] else None,
         'signals_count': len(DATA_CACHE['signals']),
-        'uptime': 'running'
+        'current_time': now.isoformat(),
+        'next_analysis': f"Hoje às 20:00" if now.hour < 20 else "Amanhã às 20:00"
     })
 
 HTML_TEMPLATE = """<!DOCTYPE html>
@@ -266,6 +294,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         <div class="footer">
             <p><strong>📊 Última Análise:</strong> {{ last_analysis }}</p>
             <p><strong>🎯 Sistema:</strong> BTS-B3</p>
+            <p><strong>⏰ Próxima Análise:</strong> Diariamente às 20:00</p>
         </div>
     </div>
     
@@ -279,7 +308,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 </html>"""
 
 # Inicializar dados na inicialização
-update_prices()
+initialize_data()
 
 # Iniciar scheduler em thread separada
 scheduler_thread = threading.Thread(target=run_scheduler, daemon=True)
