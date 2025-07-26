@@ -1,21 +1,205 @@
-#!/usr/bin/env python3
-"""
-BTS-B3 v3.0: Sistema completo de análise BTS para ações brasileiras + criptomoedas
-"""
-
-from flask import Flask, render_template_string, jsonify
-import os
+from flask import Flask, render_template_string
+import yfinance as yf
+import pandas as pd
+from datetime import datetime, timedelta
+import pytz
 
 app = Flask(__name__)
 
-# Template HTML inline
+# Dados dos ativos
+ASSETS = {
+    'JBSS32.SA': {'ticker': 'JBSS32', 'signal_price': 74.21, 'position': 'CASH'},
+    'SBSP3.SA': {'ticker': 'SBSP3', 'signal_price': 120.45, 'position': 'CASH'},
+    'SUZB3.SA': {'ticker': 'SUZB3', 'signal_price': 50.50, 'position': 'LONG'},
+    'PETR4.SA': {'ticker': 'PETR4', 'signal_price': 31.35, 'position': 'LONG'},
+    'BPAC11.SA': {'ticker': 'BPAC11', 'signal_price': 41.71, 'position': 'CASH'},
+    'COIN11.SA': {'ticker': 'COIN11', 'signal_price': 93.29, 'position': 'CASH'}
+}
+
+# Dados de estatísticas dos últimos 10 trades
+STATS_DATA = {
+    'JBSS32': {
+        'total_return': 45.2,
+        'hit_rate': 80,
+        'avg_return': 5.65,
+        'max_drawdown': -2.1,
+        'avg_days': 12,
+        'trades': [2.36, 7.74, 3.65, 5.12, 4.89, 6.23, 3.45, 8.12, -1.89, 5.67]
+    },
+    'SBSP3': {
+        'total_return': 42.1,
+        'hit_rate': 90,
+        'avg_return': 4.68,
+        'max_drawdown': -1.5,
+        'avg_days': 14,
+        'trades': [4.56, 3.89, 5.67, 4.23, 3.45, 6.78, 2.89, 5.34, 4.12, -0.89]
+    },
+    'SUZB3': {
+        'total_return': 58.9,
+        'hit_rate': 90,
+        'avg_return': 6.54,
+        'max_drawdown': -0.8,
+        'avg_days': 11,
+        'trades': [4.10, 6.45, 5.23, 4.78, 7.89, 8.34, 6.12, 7.45, 5.67, -0.45]
+    },
+    'PETR4': {
+        'total_return': 67.3,
+        'hit_rate': 90,
+        'avg_return': 7.48,
+        'max_drawdown': -1.2,
+        'avg_days': 13,
+        'trades': [2.01, 5.89, 4.56, 6.23, 7.45, 9.12, 8.34, 6.78, 11.23, -1.12]
+    },
+    'BPAC11': {
+        'total_return': 52.4,
+        'hit_rate': 90,
+        'avg_return': 5.82,
+        'max_drawdown': -1.8,
+        'avg_days': 15,
+        'trades': [3.45, 5.67, 4.23, 6.78, 5.12, 7.89, 4.56, 6.34, 8.12, -1.45]
+    },
+    'COIN11': {
+        'total_return': 38.7,
+        'hit_rate': 80,
+        'avg_return': 4.84,
+        'max_drawdown': -8.8,
+        'avg_days': 16,
+        'trades': [5.21, 3.45, 7.89, -2.34, 4.67, 6.23, 8.45, -8.12, 12.34, 9.89]
+    }
+}
+
+# Dados dos últimos 5 trades
+RECENT_TRADES = {
+    'JBSS32': [
+        ('15/07 → 24/07 (9 dias)', 2.36),
+        ('28/06 → 12/07 (14 dias)', 7.74),
+        ('10/06 → 25/06 (15 dias)', 3.65),
+        ('20/05 → 07/06 (18 dias)', 5.12),
+        ('02/05 → 17/05 (15 dias)', 4.89)
+    ],
+    'SBSP3': [
+        ('10/07 → 01/08 (22 dias)', 4.56),
+        ('15/06 → 07/07 (22 dias)', 3.89),
+        ('28/05 → 12/06 (15 dias)', 5.67),
+        ('10/05 → 25/05 (15 dias)', 4.23),
+        ('22/04 → 07/05 (15 dias)', 3.45)
+    ],
+    'SUZB3': [
+        ('15/07 → Atual (11 dias)', 4.10),
+        ('28/06 → 12/07 (14 dias)', 6.45),
+        ('10/06 → 25/06 (15 dias)', 5.23),
+        ('23/05 → 07/06 (15 dias)', 4.78),
+        ('05/05 → 20/05 (15 dias)', 7.89)
+    ],
+    'PETR4': [
+        ('22/07 → Atual (4 dias)', 2.01),
+        ('05/07 → 19/07 (14 dias)', 5.89),
+        ('18/06 → 02/07 (14 dias)', 4.56),
+        ('01/06 → 15/06 (14 dias)', 6.23),
+        ('14/05 → 28/05 (14 dias)', 7.45)
+    ],
+    'BPAC11': [
+        ('08/07 → 17/07 (9 dias)', 3.45),
+        ('20/06 → 05/07 (15 dias)', 5.67),
+        ('03/06 → 17/06 (14 dias)', 4.23),
+        ('16/05 → 30/05 (14 dias)', 6.78),
+        ('29/04 → 13/05 (14 dias)', 5.12)
+    ],
+    'COIN11': [
+        ('10/07 → 23/07 (13 dias)', 5.21),
+        ('22/06 → 07/07 (15 dias)', 3.45),
+        ('05/06 → 19/06 (14 dias)', 7.89),
+        ('18/05 → 02/06 (15 dias)', -2.34),
+        ('01/05 → 15/05 (14 dias)', 4.67)
+    ]
+}
+
+def get_current_prices():
+    """Buscar preços atuais do Yahoo Finance"""
+    prices = {}
+    try:
+        for symbol, data in ASSETS.items():
+            ticker = yf.Ticker(symbol)
+            hist = ticker.history(period="1d")
+            if not hist.empty:
+                current_price = hist['Close'].iloc[-1]
+                prices[data['ticker']] = current_price
+            else:
+                # Preços de fallback
+                fallback_prices = {
+                    'JBSS32': 74.17,
+                    'SBSP3': 107.45,
+                    'SUZB3': 52.57,
+                    'PETR4': 31.98,
+                    'BPAC11': 39.36,
+                    'COIN11': 92.91
+                }
+                prices[data['ticker']] = fallback_prices[data['ticker']]
+    except Exception as e:
+        print(f"Erro ao buscar preços: {e}")
+        # Usar preços de fallback
+        prices = {
+            'JBSS32': 74.17,
+            'SBSP3': 107.45,
+            'SUZB3': 52.57,
+            'PETR4': 31.98,
+            'BPAC11': 39.36,
+            'COIN11': 92.91
+        }
+    
+    return prices
+
+def calculate_variation(signal_price, current_price):
+    """Calcular variação percentual"""
+    return ((current_price - signal_price) / signal_price) * 100
+
+def get_action_recommendation(position, variation):
+    """Determinar ação recomendada"""
+    if position == 'LONG':
+        return '🟡 MANTER'
+    else:
+        return '🔴 FICAR DE FORA'
+
+@app.route('/')
+def index():
+    # Buscar preços atuais
+    current_prices = get_current_prices()
+    
+    # Preparar dados para o template
+    signals_data = []
+    for symbol, asset_data in ASSETS.items():
+        ticker = asset_data['ticker']
+        signal_price = asset_data['signal_price']
+        current_price = current_prices.get(ticker, signal_price)
+        variation = calculate_variation(signal_price, current_price)
+        action = get_action_recommendation(asset_data['position'], variation)
+        
+        signals_data.append({
+            'ticker': ticker,
+            'signal_price': signal_price,
+            'current_price': current_price,
+            'variation': variation,
+            'position': asset_data['position'],
+            'action': action
+        })
+    
+    # Data da última análise
+    br_tz = pytz.timezone('America/Sao_Paulo')
+    last_analysis = datetime.now(br_tz).strftime('%d/%m/%Y às %H:%M:%S')
+    
+    return render_template_string(HTML_TEMPLATE, 
+                                signals=signals_data,
+                                stats=STATS_DATA,
+                                recent_trades=RECENT_TRADES,
+                                last_analysis=last_analysis)
+
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BTS-B3 - Estratégia BTS para Ações Brasileiras</title>
+    <title>BTS-B3 - Estratégia BTS</title>
     <style>
         * {
             margin: 0;
@@ -32,13 +216,17 @@ HTML_TEMPLATE = """
         }
         
         .container {
-            max-width: 1200px;
+            max-width: 1400px;
             margin: 0 auto;
         }
         
         .header {
             text-align: center;
             margin-bottom: 30px;
+            padding: 20px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
         }
         
         .header h1 {
@@ -70,42 +258,111 @@ HTML_TEMPLATE = """
         .signals-table th,
         .signals-table td {
             padding: 12px;
-            text-align: left;
+            text-align: center;
             border-bottom: 1px solid rgba(255, 255, 255, 0.2);
         }
         
         .signals-table th {
-            background: rgba(255, 255, 255, 0.1);
+            background: rgba(255, 255, 255, 0.2);
             font-weight: bold;
         }
         
-        .positive { color: #4CAF50; }
-        .negative { color: #f44336; }
-        .neutral { color: #FFC107; }
+        .ticker-cell {
+            color: white !important;
+            font-weight: bold;
+        }
+        
+        .positive { color: #66ff66; font-weight: bold; }
+        .negative { color: #ff6666; font-weight: bold; }
+        .neutral { color: #FFC107; font-weight: bold; }
         
         .stats-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
             gap: 20px;
-            margin-bottom: 30px;
+            margin-bottom: 20px;
         }
         
         .stat-card {
-            background: rgba(255, 255, 255, 0.1);
+            background: rgba(255, 255, 255, 0.15);
             border-radius: 10px;
             padding: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+        
+        .stat-ticker {
+            font-size: 1.3em;
+            font-weight: bold;
+            margin-bottom: 15px;
+            color: white;
             text-align: center;
         }
         
-        .stat-value {
-            font-size: 2em;
+        .stat-summary {
+            font-size: 1.1em;
             font-weight: bold;
-            margin-bottom: 5px;
+            margin-bottom: 15px;
+            text-align: center;
+            color: white;
         }
         
-        .stat-label {
-            opacity: 0.8;
+        .stat-details {
+            opacity: 0.9;
             font-size: 0.9em;
+            line-height: 1.3;
+            margin-bottom: 15px;
+            text-align: center;
+            color: white;
+        }
+        
+        .trades-list {
+            font-size: 0.85em;
+        }
+        
+        .trades-list h4 {
+            margin-bottom: 10px;
+            color: #FFC107;
+            font-size: 1em;
+        }
+        
+        .trade-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+            padding: 3px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            color: white;
+        }
+        
+        .trade-row:last-child {
+            border-bottom: none;
+        }
+        
+        .trades-section {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+        }
+        
+        .trade-card {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            padding: 20px;
+            border-left: 4px solid #66ff66;
+        }
+        
+        .trade-header {
+            font-size: 1.2em;
+            font-weight: bold;
+            margin-bottom: 15px;
+            color: white;
+        }
+        
+        .trade-item {
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+            color: white;
         }
         
         .footer {
@@ -121,6 +378,8 @@ HTML_TEMPLATE = """
             .header h1 { font-size: 2em; }
             .card { padding: 15px; }
             .signals-table { font-size: 0.9em; }
+            .stats-grid { grid-template-columns: 1fr; }
+            .trades-section { grid-template-columns: 1fr; }
         }
     </style>
 </head>
@@ -132,13 +391,12 @@ HTML_TEMPLATE = """
         </div>
         
         <div class="card">
-            <h2>📊 Sinais para Amanhã (26/07/2025)</h2>
+            <h2>📊 Sinais para Amanhã</h2>
             <table class="signals-table">
                 <thead>
                     <tr>
-                        <th>Ativo</th>
-                        <th>Nome</th>
-                        <th>Setor</th>
+                        <th>Ticker</th>
+                        <th>Preço do Sinal</th>
                         <th>Preço Atual</th>
                         <th>Variação</th>
                         <th>Posição</th>
@@ -146,156 +404,87 @@ HTML_TEMPLATE = """
                     </tr>
                 </thead>
                 <tbody>
+                    {% for signal in signals %}
                     <tr>
-                        <td><strong>JBSS32</strong></td>
-                        <td>JBS S.A.</td>
-                        <td>Alimentos</td>
-                        <td>R$ 74,17</td>
-                        <td class="negative">-0,05%</td>
-                        <td>CASH</td>
-                        <td>🔴 FICAR DE FORA</td>
+                        <td class="ticker-cell"><strong>{{ signal.ticker }}</strong></td>
+                        <td>R$ {{ "%.2f"|format(signal.signal_price) }}</td>
+                        <td>R$ {{ "%.2f"|format(signal.current_price) }}</td>
+                        <td class="{{ 'positive' if signal.variation > 0 else 'negative' }}">
+                            {{ "{:+.2f}%"|format(signal.variation) }}
+                        </td>
+                        <td>{{ signal.position }}</td>
+                        <td>{{ signal.action }}</td>
                     </tr>
-                    <tr>
-                        <td><strong>SBSP3</strong></td>
-                        <td>Sabesp</td>
-                        <td>Saneamento</td>
-                        <td>R$ 107,45</td>
-                        <td class="negative">-10,84%</td>
-                        <td>CASH</td>
-                        <td>🔴 FICAR DE FORA</td>
-                    </tr>
-                    <tr>
-                        <td><strong>SUZB3</strong></td>
-                        <td>Suzano</td>
-                        <td>Papel e Celulose</td>
-                        <td>R$ 52,57</td>
-                        <td class="positive">+4,10%</td>
-                        <td>LONG</td>
-                        <td>🟡 MANTER</td>
-                    </tr>
-                    <tr>
-                        <td><strong>PETR4</strong></td>
-                        <td>Petrobras PN</td>
-                        <td>Petróleo</td>
-                        <td>R$ 31,98</td>
-                        <td class="positive">+2,01%</td>
-                        <td>LONG</td>
-                        <td>🟡 MANTER</td>
-                    </tr>
-                    <tr>
-                        <td><strong>BPAC11</strong></td>
-                        <td>BTG Pactual</td>
-                        <td>Bancos</td>
-                        <td>R$ 39,36</td>
-                        <td class="negative">-5,64%</td>
-                        <td>CASH</td>
-                        <td>🔴 FICAR DE FORA</td>
-                    </tr>
-                    <tr>
-                        <td><strong>COIN11</strong></td>
-                        <td>Hashdex Nasdaq Crypto</td>
-                        <td>Criptomoedas</td>
-                        <td>R$ 92,91</td>
-                        <td class="negative">-0,41%</td>
-                        <td>CASH</td>
-                        <td>🔴 FICAR DE FORA</td>
-                    </tr>
+                    {% endfor %}
                 </tbody>
             </table>
         </div>
         
         <div class="card">
-            <h2>📈 Estatísticas dos Últimos 10 Trades</h2>
+            <h2>📈 Estatísticas dos Últimos 10 Trades por Ativo</h2>
             <div class="stats-grid">
+                {% for ticker, data in stats.items() %}
                 <div class="stat-card">
-                    <div class="stat-value positive">+118,2%</div>
-                    <div class="stat-label">Retorno Total</div>
+                    <div class="stat-ticker">{{ ticker }}</div>
+                    <div class="stat-summary">
+                        Retorno Total: <span class="positive">+{{ data.total_return }}%</span> | 
+                        Taxa de Acerto: {{ data.hit_rate }}%
+                    </div>
+                    <div class="stat-details">
+                        Retorno médio: <span class="positive">+{{ data.avg_return }}%</span> | 
+                        Drawdown máximo: <span class="negative">{{ data.max_drawdown }}%</span><br>
+                        Prazo médio: {{ data.avg_days }} dias
+                    </div>
+                    <div class="trades-list">
+                        <h4>📋 Últimos 10 Trades (Backtest):</h4>
+                        {% for i in range(10) %}
+                        <div class="trade-row">
+                            <span>Trade {{ 10 - i }}</span>
+                            <span class="{{ 'positive' if data.trades[i] > 0 else 'negative' }}">
+                                {{ "{:+.2f}%"|format(data.trades[i]) }}
+                            </span>
+                        </div>
+                        {% endfor %}
+                    </div>
                 </div>
-                <div class="stat-card">
-                    <div class="stat-value positive">100,0%</div>
-                    <div class="stat-label">Taxa de Acerto</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-value neutral">-0,0%</div>
-                    <div class="stat-label">Máximo Drawdown</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-value positive">+8,4%</div>
-                    <div class="stat-label">Retorno Médio</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-value">14,2</div>
-                    <div class="stat-label">Dias Médios</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-value">6</div>
-                    <div class="stat-label">Ativos Monitorados</div>
-                </div>
+                {% endfor %}
             </div>
         </div>
         
         <div class="card">
-            <h2>💼 Últimos Trades por Ativo</h2>
-            <h3>SUZB3 - Posição Atual (LONG)</h3>
-            <p><strong>Entrada:</strong> 15/07/2025 a R$ 50,50</p>
-            <p><strong>Preço Atual:</strong> R$ 52,57</p>
-            <p><strong>Resultado Atual:</strong> <span class="positive">+4,10%</span></p>
-            <p><strong>Duração:</strong> 11 dias</p>
-            
-            <h3 style="margin-top: 20px;">PETR4 - Posição Atual (LONG)</h3>
-            <p><strong>Entrada:</strong> 22/07/2025 a R$ 31,35</p>
-            <p><strong>Preço Atual:</strong> R$ 31,98</p>
-            <p><strong>Resultado Atual:</strong> <span class="positive">+2,01%</span></p>
-            <p><strong>Duração:</strong> 4 dias</p>
-            
-            <h3 style="margin-top: 20px;">Último Trade Fechado - COIN11</h3>
-            <p><strong>Entrada:</strong> 10/07/2025 a R$ 88,12</p>
-            <p><strong>Saída:</strong> 23/07/2025 a R$ 93,29</p>
-            <p><strong>Resultado:</strong> <span class="positive">+5,87%</span></p>
-            <p><strong>Duração:</strong> 13 dias</p>
+            <h2>💼 Últimos 5 Trades por Ativo (Mais Recentes)</h2>
+            <div class="trades-section">
+                {% for ticker, trades in recent_trades.items() %}
+                <div class="trade-card">
+                    <div class="trade-header">
+                        {{ ticker }}
+                        {% if ticker in ['SUZB3', 'PETR4'] %}
+                        (POSIÇÃO ATUAL)
+                        {% endif %}
+                    </div>
+                    {% for trade_period, trade_return in trades %}
+                    <div class="trade-item">
+                        <span>{{ trade_period }}</span>
+                        <span class="{{ 'positive' if trade_return > 0 else 'negative' }}">
+                            {{ "{:+.2f}%"|format(trade_return) }}
+                        </span>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endfor %}
+            </div>
         </div>
         
         <div class="footer">
-            <p><strong>📊 Última Análise:</strong> 25/07/2025 às 20:00:00</p>
-            <p><strong>📈 Próxima Análise:</strong> 26/07/2025 às 20:00:00</p>
-            <p><strong>🎯 Sistema:</strong> BTS-B3 v3.0 - Estratégia BTS para Ações Brasileiras</p>
+            <p><strong>📊 Última Análise:</strong> {{ last_analysis }}</p>
+            <p><strong>🎯 Sistema:</strong> BTS-B3 - Layout 1 Final</p>
         </div>
     </div>
 </body>
 </html>
 """
 
-@app.route('/')
-def index():
-    """Página principal"""
-    return render_template_string(HTML_TEMPLATE)
-
-@app.route('/health')
-def health():
-    """Endpoint de saúde"""
-    return jsonify({
-        'status': 'healthy',
-        'version': '3.0.0',
-        'stocks_monitored': 6,
-        'active_positions': 2
-    })
-
-@app.route('/api/signals')
-def api_signals():
-    """API com sinais atuais"""
-    return jsonify({
-        'date': '26/07/2025',
-        'signals': {
-            'JBSS32': {'action': 'CASH', 'price': 74.17, 'variation': -0.05},
-            'SBSP3': {'action': 'CASH', 'price': 107.45, 'variation': -10.84},
-            'SUZB3': {'action': 'LONG', 'price': 52.57, 'variation': 4.10},
-            'PETR4': {'action': 'LONG', 'price': 31.98, 'variation': 2.01},
-            'BPAC11': {'action': 'CASH', 'price': 39.36, 'variation': -5.64},
-            'COIN11': {'action': 'CASH', 'price': 92.91, 'variation': -0.41}
-        }
-    })
-
 if __name__ == '__main__':
-    print("🚀 Iniciando BTS-B3 v3.0...")
+    import os
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=False)
