@@ -192,8 +192,7 @@ def api_status():
         'uptime': 'running'
     })
 
-HTML_TEMPLATE = """
-<!DOCTYPE html>
+HTML_TEMPLATE = """<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
@@ -255,9 +254,9 @@ HTML_TEMPLATE = """
                     {% for signal in signals %}
                     <tr>
                         <td class="ticker-cell"><strong>{{ signal.ticker }}</strong></td>
-                        <td>R$ {{ "%.2f"|format(signal.signal_price) }}</td>
-                        <td>R$ {{ "%.2f"|format(signal.current_price) }}</td>
-                        <td class="{{ 'positive' if signal.variation > 0 else 'negative' }}">{{ "{:+.2f}%"|format(signal.variation) }}</td>
+                        <td>R$ {{ "{:.2f}".format(signal.signal_price) }}</td>
+                        <td>R$ {{ "{:.2f}".format(signal.current_price) }}</td>
+                        <td class="{{ 'positive' if signal.variation > 0 else 'negative' }}">{{ "{:+.2f}".format(signal.variation) }}%</td>
                         <td>{{ signal.position }}</td>
                         <td>{{ signal.action }}</td>
                     </tr>
@@ -277,7 +276,7 @@ HTML_TEMPLATE = """
                     <div class="trades-list">
                         <h4>📋 Últimos 10 Trades (Backtest):</h4>
                         {% for i in range(10) %}
-                        <div class="trade-row"><span>Trade {{ 10 - i }}</span><span class="{{ 'positive' if data.trades[i] > 0 else 'negative' }}">{{ "{:+.2f}%"|format(data.trades[i]) }}</span></div>
+                        <div class="trade-row"><span>Trade {{ 10 - i }}</span><span class="{{ 'positive' if data.trades[i] > 0 else 'negative' }}">{{ "{:+.2f}".format(data.trades[i]) }}%</span></div>
                         {% endfor %}
                     </div>
                 </div>
@@ -292,7 +291,7 @@ HTML_TEMPLATE = """
                 <div class="trade-card">
                     <div class="trade-header">{{ ticker }}{% if ticker in ['SUZB3', 'PETR4'] %} (POSIÇÃO ATUAL){% endif %}</div>
                     {% for trade_period, trade_return in trades %}
-                    <div class="trade-item"><span>{{ trade_period }}</span><span class="{{ 'positive' if trade_return > 0 else 'negative' }}">{{ "{:+.2f}%"|format(trade_return) }}</span></div>
+                    <div class="trade-item"><span>{{ trade_period }}</span><span class="{{ 'positive' if trade_return > 0 else 'negative' }}">{{ "{:+.2f}".format(trade_return) }}%</span></div>
                     {% endfor %}
                 </div>
                 {% endfor %}
@@ -319,8 +318,7 @@ HTML_TEMPLATE = """
         }, 1000);
     </script>
 </body>
-</html>
-"""
+</html>"""
 
 # Inicializar dados na inicialização
 update_prices()
