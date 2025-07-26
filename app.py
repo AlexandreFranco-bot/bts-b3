@@ -8,12 +8,6 @@ BTS-B3 v2.0: Sistema completo de análise BTS para ações brasileiras + criptom
 """
 
 from flask import Flask, render_template, jsonify
-import yfinance as yf
-import pandas as pd
-import numpy as np
-from datetime import datetime, timedelta
-import pytz
-import json
 import os
 
 app = Flask(__name__)
@@ -29,7 +23,80 @@ STOCKS = {
 }
 
 # Dados dos últimos 10 trades por ativo
-LAST_10_TRADES = {'JBSS32': [{'entry_date': '15/07/2025', 'exit_date': '24/07/2025', 'return': 2.36, 'days': 9}, {'entry_date': '28/06/2025', 'exit_date': '12/07/2025', 'return': 7.74, 'days': 14}, {'entry_date': '10/06/2025', 'exit_date': '25/06/2025', 'return': 3.65, 'days': 15}, {'entry_date': '20/05/2025', 'exit_date': '07/06/2025', 'return': 5.12, 'days': 18}, {'entry_date': '02/05/2025', 'exit_date': '17/05/2025', 'return': 4.89, 'days': 15}, {'entry_date': '15/04/2025', 'exit_date': '29/04/2025', 'return': 6.23, 'days': 14}, {'entry_date': '28/03/2025', 'exit_date': '12/04/2025', 'return': 3.78, 'days': 15}, {'entry_date': '10/03/2025', 'exit_date': '25/03/2025', 'return': 8.45, 'days': 15}, {'entry_date': '20/02/2025', 'exit_date': '07/03/2025', 'return': -1.23, 'days': 15}, {'entry_date': '03/02/2025', 'exit_date': '17/02/2025', 'return': 7.89, 'days': 14}], 'SBSP3': [{'entry_date': '10/07/2025', 'exit_date': '01/07/2025', 'return': 4.56, 'days': 21}, {'entry_date': '15/06/2025', 'exit_date': '07/07/2025', 'return': 3.89, 'days': 22}, {'entry_date': '28/05/2025', 'exit_date': '12/06/2025', 'return': 5.67, 'days': 15}, {'entry_date': '10/05/2025', 'exit_date': '25/05/2025', 'return': 4.23, 'days': 15}, {'entry_date': '22/04/2025', 'exit_date': '07/05/2025', 'return': 3.45, 'days': 15}, {'entry_date': '05/04/2025', 'exit_date': '19/04/2025', 'return': 6.78, 'days': 14}, {'entry_date': '18/03/2025', 'exit_date': '02/04/2025', 'return': 2.34, 'days': 15}, {'entry_date': '01/03/2025', 'exit_date': '15/03/2025', 'return': 5.12, 'days': 14}, {'entry_date': '12/02/2025', 'exit_date': '26/02/2025', 'return': 4.67, 'days': 14}, {'entry_date': '25/01/2025', 'exit_date': '09/02/2025', 'return': 3.89, 'days': 15}], 'SUZB3': [{'entry_date': '15/07/2025', 'exit_date': 'Em andamento', 'return': 4.1, 'days': 10}, {'entry_date': '28/06/2025', 'exit_date': '12/07/2025', 'return': 6.45, 'days': 14}, {'entry_date': '10/06/2025', 'exit_date': '25/06/2025', 'return': 5.23, 'days': 15}, {'entry_date': '23/05/2025', 'exit_date': '07/06/2025', 'return': 4.78, 'days': 15}, {'entry_date': '05/05/2025', 'exit_date': '20/05/2025', 'return': 7.89, 'days': 15}, {'entry_date': '18/04/2025', 'exit_date': '02/05/2025', 'return': 3.45, 'days': 14}, {'entry_date': '01/04/2025', 'exit_date': '15/04/2025', 'return': 6.12, 'days': 14}, {'entry_date': '14/03/2025', 'exit_date': '28/03/2025', 'return': 5.67, 'days': 14}, {'entry_date': '25/02/2025', 'exit_date': '11/03/2025', 'return': 4.89, 'days': 14}, {'entry_date': '08/02/2025', 'exit_date': '22/02/2025', 'return': 6.78, 'days': 14}], 'PETR4': [{'entry_date': '22/07/2025', 'exit_date': 'Em andamento', 'return': 2.01, 'days': 3}, {'entry_date': '05/07/2025', 'exit_date': '19/07/2025', 'return': 5.89, 'days': 14}, {'entry_date': '18/06/2025', 'exit_date': '02/07/2025', 'return': 4.56, 'days': 14}, {'entry_date': '01/06/2025', 'exit_date': '15/06/2025', 'return': 6.23, 'days': 14}, {'entry_date': '14/05/2025', 'exit_date': '28/05/2025', 'return': 7.45, 'days': 14}, {'entry_date': '27/04/2025', 'exit_date': '11/05/2025', 'return': 3.78, 'days': 14}, {'entry_date': '10/04/2025', 'exit_date': '24/04/2025', 'return': 8.12, 'days': 14}, {'entry_date': '24/03/2025', 'exit_date': '07/04/2025', 'return': 5.67, 'days': 14}, {'entry_date': '07/03/2025', 'exit_date': '21/03/2025', 'return': 4.34, 'days': 14}, {'entry_date': '18/02/2025', 'exit_date': '04/03/2025', 'return': 6.89, 'days': 14}], 'BPAC11': [{'entry_date': '08/07/2025', 'exit_date': '17/07/2025', 'return': 3.45, 'days': 9}, {'entry_date': '20/06/2025', 'exit_date': '05/07/2025', 'return': 5.67, 'days': 15}, {'entry_date': '03/06/2025', 'exit_date': '17/06/2025', 'return': 4.23, 'days': 14}, {'entry_date': '16/05/2025', 'exit_date': '30/05/2025', 'return': 6.78, 'days': 14}, {'entry_date': '29/04/2025', 'exit_date': '13/05/2025', 'return': 5.12, 'days': 14}, {'entry_date': '12/04/2025', 'exit_date': '26/04/2025', 'return': 7.89, 'days': 14}, {'entry_date': '26/03/2025', 'exit_date': '09/04/2025', 'return': 3.56, 'days': 14}, {'entry_date': '09/03/2025', 'exit_date': '23/03/2025', 'return': 6.45, 'days': 14}, {'entry_date': '20/02/2025', 'exit_date': '06/03/2025', 'return': 4.78, 'days': 14}, {'entry_date': '03/02/2025', 'exit_date': '17/02/2025', 'return': 5.89, 'days': 14}], 'COIN11': [{'entry_date': '10/07/2025', 'exit_date': '23/07/2025', 'return': 5.21, 'days': 13}, {'entry_date': '22/06/2025', 'exit_date': '07/07/2025', 'return': 3.45, 'days': 15}, {'entry_date': '05/06/2025', 'exit_date': '19/06/2025', 'return': 7.89, 'days': 14}, {'entry_date': '18/05/2025', 'exit_date': '02/06/2025', 'return': -2.34, 'days': 15}, {'entry_date': '01/05/2025', 'exit_date': '15/05/2025', 'return': 4.67, 'days': 14}, {'entry_date': '14/04/2025', 'exit_date': '28/04/2025', 'return': 6.23, 'days': 14}, {'entry_date': '27/03/2025', 'exit_date': '10/04/2025', 'return': 3.78, 'days': 14}, {'entry_date': '10/03/2025', 'exit_date': '24/03/2025', 'return': 8.45, 'days': 14}, {'entry_date': '21/02/2025', 'exit_date': '07/03/2025', 'return': -8.82, 'days': 14}, {'entry_date': '04/02/2025', 'exit_date': '18/02/2025', 'return': 5.67, 'days': 14}]}
+LAST_10_TRADES = {
+    'JBSS32': [
+        {'entry_date': '15/07/2025', 'exit_date': '24/07/2025', 'return': 2.36, 'days': 9},
+        {'entry_date': '28/06/2025', 'exit_date': '12/07/2025', 'return': 7.74, 'days': 14},
+        {'entry_date': '10/06/2025', 'exit_date': '25/06/2025', 'return': 3.65, 'days': 15},
+        {'entry_date': '20/05/2025', 'exit_date': '07/06/2025', 'return': 5.12, 'days': 18},
+        {'entry_date': '02/05/2025', 'exit_date': '17/05/2025', 'return': 4.89, 'days': 15},
+        {'entry_date': '15/04/2025', 'exit_date': '29/04/2025', 'return': 6.23, 'days': 14},
+        {'entry_date': '28/03/2025', 'exit_date': '12/04/2025', 'return': 3.78, 'days': 15},
+        {'entry_date': '10/03/2025', 'exit_date': '25/03/2025', 'return': 8.45, 'days': 15},
+        {'entry_date': '20/02/2025', 'exit_date': '07/03/2025', 'return': -1.23, 'days': 15},
+        {'entry_date': '03/02/2025', 'exit_date': '17/02/2025', 'return': 7.89, 'days': 14}
+    ],
+    'SBSP3': [
+        {'entry_date': '10/07/2025', 'exit_date': '01/07/2025', 'return': 4.56, 'days': 21},
+        {'entry_date': '15/06/2025', 'exit_date': '07/07/2025', 'return': 3.89, 'days': 22},
+        {'entry_date': '28/05/2025', 'exit_date': '12/06/2025', 'return': 5.67, 'days': 15},
+        {'entry_date': '10/05/2025', 'exit_date': '25/05/2025', 'return': 4.23, 'days': 15},
+        {'entry_date': '22/04/2025', 'exit_date': '07/05/2025', 'return': 3.45, 'days': 15},
+        {'entry_date': '05/04/2025', 'exit_date': '19/04/2025', 'return': 6.78, 'days': 14},
+        {'entry_date': '18/03/2025', 'exit_date': '02/04/2025', 'return': 2.34, 'days': 15},
+        {'entry_date': '01/03/2025', 'exit_date': '15/03/2025', 'return': 5.12, 'days': 14},
+        {'entry_date': '12/02/2025', 'exit_date': '26/02/2025', 'return': 4.67, 'days': 14},
+        {'entry_date': '25/01/2025', 'exit_date': '09/02/2025', 'return': 3.89, 'days': 15}
+    ],
+    'SUZB3': [
+        {'entry_date': '15/07/2025', 'exit_date': 'Em andamento', 'return': 4.10, 'days': 10},
+        {'entry_date': '28/06/2025', 'exit_date': '12/07/2025', 'return': 6.45, 'days': 14},
+        {'entry_date': '10/06/2025', 'exit_date': '25/06/2025', 'return': 5.23, 'days': 15},
+        {'entry_date': '23/05/2025', 'exit_date': '07/06/2025', 'return': 4.78, 'days': 15},
+        {'entry_date': '05/05/2025', 'exit_date': '20/05/2025', 'return': 7.89, 'days': 15},
+        {'entry_date': '18/04/2025', 'exit_date': '02/05/2025', 'return': 3.45, 'days': 14},
+        {'entry_date': '01/04/2025', 'exit_date': '15/04/2025', 'return': 6.12, 'days': 14},
+        {'entry_date': '14/03/2025', 'exit_date': '28/03/2025', 'return': 5.67, 'days': 14},
+        {'entry_date': '25/02/2025', 'exit_date': '11/03/2025', 'return': 4.89, 'days': 14},
+        {'entry_date': '08/02/2025', 'exit_date': '22/02/2025', 'return': 6.78, 'days': 14}
+    ],
+    'PETR4': [
+        {'entry_date': '22/07/2025', 'exit_date': 'Em andamento', 'return': 2.01, 'days': 3},
+        {'entry_date': '05/07/2025', 'exit_date': '19/07/2025', 'return': 5.89, 'days': 14},
+        {'entry_date': '18/06/2025', 'exit_date': '02/07/2025', 'return': 4.56, 'days': 14},
+        {'entry_date': '01/06/2025', 'exit_date': '15/06/2025', 'return': 6.23, 'days': 14},
+        {'entry_date': '14/05/2025', 'exit_date': '28/05/2025', 'return': 7.45, 'days': 14},
+        {'entry_date': '27/04/2025', 'exit_date': '11/05/2025', 'return': 3.78, 'days': 14},
+        {'entry_date': '10/04/2025', 'exit_date': '24/04/2025', 'return': 8.12, 'days': 14},
+        {'entry_date': '24/03/2025', 'exit_date': '07/04/2025', 'return': 5.67, 'days': 14},
+        {'entry_date': '07/03/2025', 'exit_date': '21/03/2025', 'return': 4.34, 'days': 14},
+        {'entry_date': '18/02/2025', 'exit_date': '04/03/2025', 'return': 6.89, 'days': 14}
+    ],
+    'BPAC11': [
+        {'entry_date': '08/07/2025', 'exit_date': '17/07/2025', 'return': 3.45, 'days': 9},
+        {'entry_date': '20/06/2025', 'exit_date': '05/07/2025', 'return': 5.67, 'days': 15},
+        {'entry_date': '03/06/2025', 'exit_date': '17/06/2025', 'return': 4.23, 'days': 14},
+        {'entry_date': '16/05/2025', 'exit_date': '30/05/2025', 'return': 6.78, 'days': 14},
+        {'entry_date': '29/04/2025', 'exit_date': '13/05/2025', 'return': 5.12, 'days': 14},
+        {'entry_date': '12/04/2025', 'exit_date': '26/04/2025', 'return': 7.89, 'days': 14},
+        {'entry_date': '26/03/2025', 'exit_date': '09/04/2025', 'return': 3.56, 'days': 14},
+        {'entry_date': '09/03/2025', 'exit_date': '23/03/2025', 'return': 6.45, 'days': 14},
+        {'entry_date': '20/02/2025', 'exit_date': '06/03/2025', 'return': 4.78, 'days': 14},
+        {'entry_date': '03/02/2025', 'exit_date': '17/02/2025', 'return': 5.89, 'days': 14}
+    ],
+    'COIN11': [
+        {'entry_date': '10/07/2025', 'exit_date': '23/07/2025', 'return': 5.21, 'days': 13},
+        {'entry_date': '22/06/2025', 'exit_date': '07/07/2025', 'return': 3.45, 'days': 15},
+        {'entry_date': '05/06/2025', 'exit_date': '19/06/2025', 'return': 7.89, 'days': 14},
+        {'entry_date': '18/05/2025', 'exit_date': '02/06/2025', 'return': -2.34, 'days': 15},
+        {'entry_date': '01/05/2025', 'exit_date': '15/05/2025', 'return': 4.67, 'days': 14},
+        {'entry_date': '14/04/2025', 'exit_date': '28/04/2025', 'return': 6.23, 'days': 14},
+        {'entry_date': '27/03/2025', 'exit_date': '10/04/2025', 'return': 3.78, 'days': 14},
+        {'entry_date': '10/03/2025', 'exit_date': '24/03/2025', 'return': 8.45, 'days': 14},
+        {'entry_date': '21/02/2025', 'exit_date': '07/03/2025', 'return': -8.82, 'days': 14},
+        {'entry_date': '04/02/2025', 'exit_date': '18/02/2025', 'return': 5.67, 'days': 14}
+    ]
+}
 
 # Sinais atuais (baseados na análise de 25/07/2025)
 CURRENT_SIGNALS = {
@@ -78,12 +145,14 @@ CURRENT_SIGNALS = {
 }
 
 # Preços atuais (atualizados)
-CURRENT_PRICES = {'JBSS32': np.float64(74.16999816894531), 'SBSP3': np.float64(107.44999694824219), 'SUZB3': np.float64(52.56999969482422), 'PETR4': np.float64(31.979999542236328), 'BPAC11': np.float64(39.36000061035156), 'COIN11': np.float64(92.91000366210938)}
-
-def get_brazil_time():
-    """Obtém horário atual do Brasil"""
-    brazil_tz = pytz.timezone('America/Sao_Paulo')
-    return datetime.now(brazil_tz)
+CURRENT_PRICES = {
+    'JBSS32': 74.17,
+    'SBSP3': 107.45,
+    'SUZB3': 52.57,
+    'PETR4': 31.98,
+    'BPAC11': 39.36,
+    'COIN11': 92.91
+}
 
 def calculate_statistics(trades):
     """Calcula estatísticas dos últimos 10 trades"""
@@ -208,7 +277,6 @@ def health():
     """Endpoint de saúde"""
     return jsonify({
         'status': 'healthy',
-        'timestamp': get_brazil_time().isoformat(),
         'stocks_monitored': len(STOCKS),
         'version': '2.0.0'
     })
@@ -216,6 +284,6 @@ def health():
 if __name__ == '__main__':
     print("🚀 Iniciando BTS-B3 v2.0...")
     print("📊 Ativos monitorados:", list(STOCKS.keys()))
-    print("⏰ Atualização automática: 20h Brasil")
     
-    app.run(host='0.0.0.0', port=5000, debug=False)
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port, debug=False)
