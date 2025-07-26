@@ -38,15 +38,6 @@ STATS_DATA = {
     'COIN11': {'total_return': 38.7, 'hit_rate': 80, 'avg_return': 4.84, 'max_drawdown': -8.8, 'avg_days': 16, 'trades': [5.21, 3.45, 7.89, -2.34, 4.67, 6.23, 8.45, -8.12, 12.34, 9.89]}
 }
 
-RECENT_TRADES = {
-    'JBSS32': [('15/07 → 24/07 (9 dias)', 2.36), ('28/06 → 12/07 (14 dias)', 7.74), ('10/06 → 25/06 (15 dias)', 3.65), ('20/05 → 07/06 (18 dias)', 5.12), ('02/05 → 17/05 (15 dias)', 4.89)],
-    'SBSP3': [('10/07 → 01/08 (22 dias)', 4.56), ('15/06 → 07/07 (22 dias)', 3.89), ('28/05 → 12/06 (15 dias)', 5.67), ('10/05 → 25/05 (15 dias)', 4.23), ('22/04 → 07/05 (15 dias)', 3.45)],
-    'SUZB3': [('15/07 → Atual (11 dias)', 4.10), ('28/06 → 12/07 (14 dias)', 6.45), ('10/06 → 25/06 (15 dias)', 5.23), ('23/05 → 07/06 (15 dias)', 4.78), ('05/05 → 20/05 (15 dias)', 7.89)],
-    'PETR4': [('22/07 → Atual (4 dias)', 2.01), ('05/07 → 19/07 (14 dias)', 5.89), ('18/06 → 02/07 (14 dias)', 4.56), ('01/06 → 15/06 (14 dias)', 6.23), ('14/05 → 28/05 (14 dias)', 7.45)],
-    'BPAC11': [('08/07 → 17/07 (9 dias)', 3.45), ('20/06 → 05/07 (15 dias)', 5.67), ('03/06 → 17/06 (14 dias)', 4.23), ('16/05 → 30/05 (14 dias)', 6.78), ('29/04 → 13/05 (14 dias)', 5.12)],
-    'COIN11': [('10/07 → 23/07 (13 dias)', 5.21), ('22/06 → 07/07 (15 dias)', 3.45), ('05/06 → 19/06 (14 dias)', 7.89), ('18/05 → 02/06 (15 dias)', -2.34), ('01/05 → 15/05 (14 dias)', 4.67)]
-}
-
 def get_yahoo_price(symbol):
     """Buscar preço atual do Yahoo Finance via API"""
     try:
@@ -92,9 +83,9 @@ def update_prices():
         if current_price is None:
             # Usar preço de fallback
             current_price = fallback_prices.get(ticker, config['signal_price'])
-            print(f"⚠️ Usando fallback para {ticker}: R$ {current_price:.2f}")
+            print(f"⚠️ Usando fallback para {ticker}: {current_price:.2f}")
         else:
-            print(f"✅ {ticker}: R$ {current_price:.2f}")
+            print(f"✅ {ticker}: {current_price:.2f}")
         
         updated_prices[ticker] = current_price
     
@@ -169,7 +160,6 @@ def index():
     return render_template_string(HTML_TEMPLATE, 
                                 signals=DATA_CACHE['signals'],
                                 stats=STATS_DATA,
-                                recent_trades=RECENT_TRADES,
                                 last_analysis=last_analysis)
 
 @app.route('/api/update')
@@ -206,7 +196,6 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         .header { text-align: center; margin-bottom: 30px; padding: 20px; background: rgba(255, 255, 255, 0.1); border-radius: 15px; backdrop-filter: blur(10px); }
         .header h1 { font-size: 2.5em; margin-bottom: 10px; text-shadow: 2px 2px 4px rgba(0,0,0,0.3); }
         .header p { font-size: 1.2em; opacity: 0.9; }
-        .update-info { text-align: center; margin-bottom: 20px; padding: 10px; background: rgba(0, 255, 0, 0.1); border-radius: 10px; border: 1px solid rgba(0, 255, 0, 0.3); }
         .card { background: rgba(255, 255, 255, 0.1); border-radius: 15px; padding: 25px; margin-bottom: 25px; backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.2); }
         .signals-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
         .signals-table th, .signals-table td { padding: 12px; text-align: center; border-bottom: 1px solid rgba(255, 255, 255, 0.2); }
@@ -223,29 +212,19 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         .trades-list h4 { margin-bottom: 10px; color: #FFC107; font-size: 1em; }
         .trade-row { display: flex; justify-content: space-between; margin-bottom: 5px; padding: 3px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.1); color: white; }
         .trade-row:last-child { border-bottom: none; }
-        .trades-section { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
-        .trade-card { background: rgba(255, 255, 255, 0.1); border-radius: 10px; padding: 20px; border-left: 4px solid #66ff66; }
-        .trade-header { font-size: 1.2em; font-weight: bold; margin-bottom: 15px; color: white; }
-        .trade-item { margin-bottom: 8px; display: flex; justify-content: space-between; color: white; }
         .footer { text-align: center; margin-top: 30px; padding: 20px; background: rgba(0, 0, 0, 0.3); border-radius: 10px; color: white; }
-        @media (max-width: 768px) { .header h1 { font-size: 2em; } .card { padding: 15px; } .signals-table { font-size: 0.9em; } .stats-grid { grid-template-columns: 1fr; } .trades-section { grid-template-columns: 1fr; } }
-        .auto-update { position: fixed; top: 10px; right: 10px; background: rgba(0, 255, 0, 0.8); color: black; padding: 5px 10px; border-radius: 5px; font-size: 0.8em; font-weight: bold; }
+        @media (max-width: 768px) { .header h1 { font-size: 2em; } .card { padding: 15px; } .signals-table { font-size: 0.9em; } .stats-grid { grid-template-columns: 1fr; } }
     </style>
 </head>
 <body>
-    <div class="auto-update">🔄 AUTO-UPDATE</div>
     <div class="container">
         <div class="header">
             <h1>🎯 BTS-B3</h1>
             <p>Estratégia BTS para Ações Brasileiras + Criptomoedas</p>
         </div>
         
-        <div class="update-info">
-            <p>🔄 <strong>Sistema Auto-Atualizável</strong> | Atualização a cada 5 minutos | Página recarrega automaticamente a cada 5 minutos</p>
-        </div>
-        
         <div class="card">
-            <h2>📊 Sinais para Amanhã (Atualizados Automaticamente)</h2>
+            <h2>📊 Sinais para Amanhã</h2>
             <table class="signals-table">
                 <thead>
                     <tr><th>Ticker</th><th>Preço do Sinal</th><th>Preço Atual</th><th>Variação</th><th>Posição</th><th>Ação Amanhã</th></tr>
@@ -254,8 +233,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                     {% for signal in signals %}
                     <tr>
                         <td class="ticker-cell"><strong>{{ signal.ticker }}</strong></td>
-                        <td>R$ {{ "{:.2f}".format(signal.signal_price) }}</td>
-                        <td>R$ {{ "{:.2f}".format(signal.current_price) }}</td>
+                        <td>{{ "{:.2f}".format(signal.signal_price) }}</td>
+                        <td>{{ "{:.2f}".format(signal.current_price) }}</td>
                         <td class="{{ 'positive' if signal.variation > 0 else 'negative' }}">{{ "{:+.2f}".format(signal.variation) }}%</td>
                         <td>{{ signal.position }}</td>
                         <td>{{ signal.action }}</td>
@@ -284,24 +263,9 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             </div>
         </div>
         
-        <div class="card">
-            <h2>💼 Últimos 5 Trades por Ativo (Mais Recentes)</h2>
-            <div class="trades-section">
-                {% for ticker, trades in recent_trades.items() %}
-                <div class="trade-card">
-                    <div class="trade-header">{{ ticker }}{% if ticker in ['SUZB3', 'PETR4'] %} (POSIÇÃO ATUAL){% endif %}</div>
-                    {% for trade_period, trade_return in trades %}
-                    <div class="trade-item"><span>{{ trade_period }}</span><span class="{{ 'positive' if trade_return > 0 else 'negative' }}">{{ "{:+.2f}".format(trade_return) }}%</span></div>
-                    {% endfor %}
-                </div>
-                {% endfor %}
-            </div>
-        </div>
-        
         <div class="footer">
             <p><strong>📊 Última Análise:</strong> {{ last_analysis }}</p>
-            <p><strong>🎯 Sistema:</strong> BTS-B3 - Auto-Atualizável</p>
-            <p><strong>🔄 Próxima Atualização:</strong> Automática em 5 minutos</p>
+            <p><strong>🎯 Sistema:</strong> BTS-B3</p>
         </div>
     </div>
     
@@ -310,12 +274,6 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         setTimeout(function() {
             window.location.reload();
         }, 300000);
-        
-        // Indicador visual de que está funcionando
-        setInterval(function() {
-            const indicator = document.querySelector('.auto-update');
-            indicator.style.opacity = indicator.style.opacity === '0.5' ? '1' : '0.5';
-        }, 1000);
     </script>
 </body>
 </html>"""
