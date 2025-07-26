@@ -1,157 +1,106 @@
-# BTS-B3 v2.0 🇧🇷🤖
+# BTS-B3 🇧🇷
 
-Sistema **automático** de análise da estratégia BTS para as 5 melhores ações brasileiras da B3.
+Sistema de análise da estratégia BTS (Trend Following) para as 5 melhores ações brasileiras da B3.
 
-## 🆕 **Novidades v2.0**
+## 📊 Ações Monitoradas
 
-### ✅ **Busca Automática de Dados**
-- Dados atualizados automaticamente do **Yahoo Finance**
-- **Sem necessidade de inserção manual** de preços
-- Atualização diária às **20h Brasil** (após fechamento do mercado)
+- **JBSS3** - JBS S.A. (Alimentos) - +790,7% retorno
+- **SBSP3** - Sabesp (Saneamento) - +271,3% retorno  
+- **SUZB3** - Suzano (Papel e Celulose) - +159,7% retorno
+- **PETR4** - Petrobras PN (Petróleo) - +198,5% retorno
+- **BPAC11** - BTG Pactual (Bancos) - +171,7% retorno
 
-### ✅ **Operação Realista**
-- Entrada/saída no **preço de abertura do dia seguinte** ao sinal
-- Simulação mais próxima da realidade de trading
-- Sistema informa **ação para o próximo dia**: COMPRAR, VENDER ou MANTER
+## 🚀 Funcionalidades
 
-### ✅ **Interface Aprimorada**
-- Coluna **"Ação Amanhã"** mostra o que fazer no próximo pregão
-- Informações de atualização automática
-- Botão para forçar atualização imediata
+### ✅ Atualização Manual de Preços
+- Campos para inserir preços de fechamento diários
+- Botão para processar e atualizar análises
+- Detecção automática de mudanças de sinal
 
----
+### 📈 Tabela de Sinais
+- Última mudança de tendência de cada ação
+- Data e preço do sinal (sem custos de 0,75%)
+- Variação atual baseada no novo preço
+- Status da posição (LONG/CASH)
 
-## 📊 **Ações Monitoradas**
+### 📊 Estatísticas Individuais
+Para cada uma das 5 ações:
+- Retorno médio dos últimos 10 trades
+- Taxa de acerto
+- Retorno total da estratégia BTS
+- Comparação com Buy & Hold
+- Drawdown máximo
+- Sharpe Ratio
 
-| Ação | Empresa | Retorno BTS | Retorno B&H | Outperformance |
-|------|---------|-------------|-------------|----------------|
-| **JBSS3** | JBS S.A. | **+1158,5%** | +350,4% | +808,1pp |
-| **SBSP3** | Sabesp | **+406,3%** | +106,5% | +299,8pp |
-| **PETR4** | Petrobras PN | **+282,4%** | +47,1% | +235,3pp |
-| **BPAC11** | BTG Pactual | **+299,6%** | +23,3% | +276,3pp |
-| **SUZB3** | Suzano | **+242,5%** | +20,9% | +221,6pp |
+## 🛠️ Tecnologias
 
-*Resultados sem custos de transação - preços brutos de abertura*
+- **Backend**: Flask (Python)
+- **Frontend**: Bootstrap 5 + JavaScript
+- **Análise**: Pandas, NumPy, SciPy
+- **Indicadores**: Savitzky-Golay Filter + Donchian Midpoint
 
----
+## 📦 Instalação
 
-## 🚀 **Como Funciona**
+```bash
+# Clonar repositório
+git clone https://github.com/seu-usuario/bts-b3.git
+cd bts-b3
 
-### 📅 **Cronograma Diário**
-1. **20h Brasil**: Sistema busca dados atualizados do Yahoo Finance
-2. **Análise automática**: Calcula indicadores BTS (SG Filter + Donchian)
-3. **Detecção de sinais**: Identifica mudanças de tendência
-4. **Ação para amanhã**: Informa se deve COMPRAR, VENDER ou MANTER
+# Instalar dependências
+pip install -r requirements.txt
 
-### 📈 **Lógica de Operação**
-- **Sinal de COMPRA hoje** → **COMPRAR na abertura de amanhã**
-- **Sinal de VENDA hoje** → **VENDER na abertura de amanhã**
-- **Sem mudança** → **MANTER posição atual**
+# Executar aplicação
+python app.py
+```
 
-### 🎯 **Estratégia BTS**
+## 🌐 Deploy
+
+### Render.com
+```bash
+# Build Command
+pip install -r requirements.txt
+
+# Start Command  
+gunicorn app:app
+```
+
+### Variáveis de Ambiente
+Nenhuma variável especial necessária.
+
+## 📋 Como Usar
+
+1. **Acesse a aplicação** no navegador
+2. **Insira os preços** de fechamento do dia nos campos correspondentes
+3. **Clique em "Atualizar"** para processar os dados
+4. **Visualize** as mudanças de sinal e estatísticas atualizadas
+
+## 🎯 Estratégia BTS
+
+A estratégia BTS utiliza:
 - **Savitzky-Golay Filter (25,4)**: Suavização da série de preços
 - **Donchian Midpoint (6)**: Canal de referência
 - **Sinal de Compra**: SG Filter > Donchian Midpoint
 - **Sinal de Venda**: SG Filter ≤ Donchian Midpoint
 
----
+## 📊 Performance Histórica
 
-## 🛠️ **Tecnologias**
+| Ação | Retorno BTS | Buy & Hold | Outperformance | Taxa Acerto |
+|------|-------------|------------|----------------|-------------|
+| JBSS3 | +790,7% | +350,4% | +440,3pp | 76% |
+| SBSP3 | +271,3% | +106,5% | +164,8pp | 78% |
+| PETR4 | +198,5% | +47,1% | +151,4pp | 79% |
+| BPAC11 | +171,7% | +23,3% | +148,4pp | 80% |
+| SUZB3 | +159,7% | +20,9% | +138,8pp | 100% |
 
-### **Backend**
-- **Flask** - Framework web Python
-- **yfinance** - Dados do Yahoo Finance
-- **pandas/numpy** - Análise de dados
-- **scipy** - Filtro Savitzky-Golay
-- **pytz** - Fuso horário Brasil
+## ⚠️ Disclaimer
 
-### **Frontend**
-- **Bootstrap 5** - Design responsivo
-- **JavaScript** - Interatividade
-- **Auto-refresh** - Atualização automática da interface
+Este sistema é apenas para fins educacionais e de análise. Não constitui recomendação de investimento. Sempre consulte um profissional qualificado antes de tomar decisões de investimento.
 
----
+## 📄 Licença
 
-## 📦 **Instalação e Deploy**
-
-### **Local**
-```bash
-git clone https://github.com/seu-usuario/bts-b3.git
-cd bts-b3
-pip install -r requirements.txt
-python app.py
-```
-
-### **Render.com**
-```yaml
-# render.yaml
-services:
-  - type: web
-    name: bts-b3-v2
-    env: python
-    buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn app:app
-```
+MIT License - veja o arquivo LICENSE para detalhes.
 
 ---
 
-## 📊 **Performance Comprovada**
-
-### **Comparação: Performance Sem Custos**
-
-| Ação | Retorno BTS | Taxa Acerto | Sharpe | Drawdown | Trades |
-|------|-------------|-------------|--------|----------|--------|
-| JBSS3 | +1158,5% | 86% | 2,47 | 2,8% | 28 |
-| SBSP3 | +406,3% | 91% | 3,87 | 1,5% | 23 |
-| PETR4 | +282,4% | 92% | 3,73 | 2,1% | 24 |
-| BPAC11 | +299,6% | 87% | 4,23 | 4,5% | 30 |
-| SUZB3 | +242,5% | 100% | 4,64 | 0,0% | 22 |
-
-**📈 Resultado:** Performance excepcional sem custos de transação!
-
----
-
-## 🎯 **Vantagens v2.0**
-
-### ✅ **Automação Total**
-- Sem necessidade de inserção manual de dados
-- Atualização automática diária
-- Sistema funciona 24/7
-
-### ✅ **Operação Realista**
-- Entrada/saída em preços executáveis
-- Considera gap de abertura
-- Simula operação real na B3
-
-### ✅ **Interface Intuitiva**
-- Mostra exatamente o que fazer amanhã
-- Informações claras e objetivas
-- Design responsivo para mobile
-
-### ✅ **Dados Confiáveis**
-- Yahoo Finance como fonte
-- Dados com delay de 15 minutos
-- Histórico completo disponível
-
----
-
-## ⚠️ **Importante**
-
-### **Horários**
-- **Atualização**: 20h Brasil (após fechamento)
-- **Ação**: Abertura do próximo pregão (9h30)
-- **Dados**: Delay de 15 minutos (Yahoo Finance)
-
-### **Disclaimer**
-Este sistema é para fins educacionais. Não constitui recomendação de investimento. Sempre consulte um profissional qualificado.
-
----
-
-## 📄 **Licença**
-
-MIT License - Sistema aberto para a comunidade
-
----
-
-**🚀 BTS-B3 v2.0 - Automação completa para estratégia BTS em ações brasileiras!**
+**Desenvolvido com ❤️ para a comunidade de investidores brasileiros**
 
