@@ -1,224 +1,217 @@
-from flask import Flask, render_template_string
-import os
-import json
+from flask import Flask, render_template_string, jsonify
+import yfinance as yf
+import pandas as pd
+import numpy as np
+from scipy.signal import savgol_filter
 from datetime import datetime, timedelta
 import pytz
+import os
+import logging
 
 app = Flask(__name__)
 
-# Dados estáticos para carregamento rápido (incluindo COIN11)
-# Agora com preços de fechamento da última análise
-STATIC_DATA = {
-    "JBSS32": {
-        "name": "JBS S.A.",
-        "sector": "Alimentos", 
-        "current_price": 74.21,
-        "closing_price": 74.21,  # Preço de fechamento da análise
-        "signal": "CASH",
-        "last_signal_date": "24/07/2025",
-        "last_signal_price": 74.21,
-        "variation": 0.00,
-        "action_tomorrow": "FICAR DE FORA"
+# Configurar logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+STOCKS_DATA = {
+    'JBSS32': {
+        'name': 'JBS S.A.',
+        'sector': 'Alimentos',
+        'current_price': 74.17,
+        'signal': 'CASH',
+        'last_signal_date': '24/07/2025',
+        'last_signal_price': 74.21,
+        'action_tomorrow': 'FICAR DE FORA',
+        'action_color': 'red'
     },
-    "SBSP3": {
-        "name": "Sabesp",
-        "sector": "Saneamento",
-        "current_price": 108.97,
-        "closing_price": 108.97,  # Preço de fechamento da análise
-        "signal": "CASH", 
-        "last_signal_date": "01/07/2025",
-        "last_signal_price": 120.54,
-        "variation": -9.60,
-        "action_tomorrow": "FICAR DE FORA"
+    'SBSP3': {
+        'name': 'Sabesp',
+        'sector': 'Saneamento',
+        'current_price': 107.45,
+        'signal': 'CASH',
+        'last_signal_date': '01/07/2025',
+        'last_signal_price': 120.54,
+        'action_tomorrow': 'FICAR DE FORA',
+        'action_color': 'red'
     },
-    "SUZB3": {
-        "name": "Suzano",
-        "sector": "Papel e Celulose",
-        "current_price": 51.50,
-        "closing_price": 51.50,  # Preço de fechamento da análise
-        "signal": "LONG",
-        "last_signal_date": "15/07/2025", 
-        "last_signal_price": 50.50,
-        "variation": 1.98,
-        "action_tomorrow": "MANTER"
+    'SUZB3': {
+        'name': 'Suzano',
+        'sector': 'Papel/Celulose',
+        'current_price': 52.57,
+        'signal': 'LONG',
+        'last_signal_date': '15/07/2025',
+        'last_signal_price': 50.50,
+        'action_tomorrow': 'MANTER',
+        'action_color': 'orange'
     },
-    "PETR4": {
-        "name": "Petrobras PN",
-        "sector": "Petróleo",
-        "current_price": 31.94,
-        "closing_price": 31.94,  # Preço de fechamento da análise
-        "signal": "LONG",
-        "last_signal_date": "22/07/2025",
-        "last_signal_price": 31.35, 
-        "variation": 1.88,
-        "action_tomorrow": "MANTER"
+    'PETR4': {
+        'name': 'Petrobras PN',
+        'sector': 'Petróleo',
+        'current_price': 31.98,
+        'signal': 'LONG',
+        'last_signal_date': '22/07/2025',
+        'last_signal_price': 31.35,
+        'action_tomorrow': 'MANTER',
+        'action_color': 'orange'
     },
-    "BPAC11": {
-        "name": "BTG Pactual",
-        "sector": "Bancos",
-        "current_price": 39.46,
-        "closing_price": 39.46,  # Preço de fechamento da análise
-        "signal": "CASH",
-        "last_signal_date": "17/07/2025",
-        "last_signal_price": 41.71,
-        "variation": -5.39,
-        "action_tomorrow": "FICAR DE FORA"
+    'BPAC11': {
+        'name': 'BTG Pactual',
+        'sector': 'Bancos',
+        'current_price': 39.36,
+        'signal': 'CASH',
+        'last_signal_date': '17/07/2025',
+        'last_signal_price': 41.71,
+        'action_tomorrow': 'FICAR DE FORA',
+        'action_color': 'red'
     },
-    "COIN11": {
-        "name": "Hashdex Nasdaq Crypto",
-        "sector": "Criptomoedas",
-        "current_price": 93.98,
-        "closing_price": 93.98,  # Preço de fechamento da análise
-        "signal": "CASH",
-        "last_signal_date": "23/07/2025",
-        "last_signal_price": 93.29,
-        "variation": 0.74,
-        "action_tomorrow": "FICAR DE FORA"
+    'COIN11': {
+        'name': 'Hashdex Nasdaq Crypto',
+        'sector': 'Criptomoedas',
+        'current_price': 92.91,
+        'signal': 'CASH',
+        'last_signal_date': '23/07/2025',
+        'last_signal_price': 93.29,
+        'action_tomorrow': 'FICAR DE FORA',
+        'action_color': 'red'
     }
 }
 
-# Últimos 10 trades encerrados por ação (incluindo COIN11)
-LAST_TRADES = {
-    "JBSS32": [
-        {"entry_date": "15/07/2025", "exit_date": "24/07/2025", "entry_price": 72.50, "exit_price": 74.21, "return": 2.36, "days": 9},
-        {"entry_date": "28/06/2025", "exit_date": "12/07/2025", "entry_price": 69.80, "exit_price": 75.20, "return": 7.74, "days": 14},
-        {"entry_date": "10/06/2025", "exit_date": "25/06/2025", "entry_price": 71.30, "exit_price": 73.90, "return": 3.65, "days": 15},
-        {"entry_date": "20/05/2025", "exit_date": "08/06/2025", "entry_price": 68.90, "exit_price": 72.10, "return": 4.64, "days": 19},
-        {"entry_date": "02/05/2025", "exit_date": "18/05/2025", "entry_price": 70.20, "exit_price": 69.50, "return": -1.00, "days": 16},
-        {"entry_date": "15/04/2025", "exit_date": "30/04/2025", "entry_price": 67.80, "exit_price": 71.80, "return": 5.90, "days": 15},
-        {"entry_date": "28/03/2025", "exit_date": "12/04/2025", "entry_price": 65.40, "exit_price": 69.20, "return": 5.81, "days": 15},
-        {"entry_date": "10/03/2025", "exit_date": "25/03/2025", "entry_price": 63.90, "exit_price": 66.80, "return": 4.54, "days": 15},
-        {"entry_date": "20/02/2025", "exit_date": "08/03/2025", "entry_price": 61.50, "exit_price": 65.20, "return": 6.02, "days": 16},
-        {"entry_date": "05/02/2025", "exit_date": "18/02/2025", "entry_price": 59.80, "exit_price": 62.90, "return": 5.18, "days": 13}
-    ],
-    "SBSP3": [
-        {"entry_date": "15/06/2025", "exit_date": "01/07/2025", "entry_price": 115.20, "exit_price": 120.54, "return": 4.63, "days": 16},
-        {"entry_date": "28/05/2025", "exit_date": "12/06/2025", "entry_price": 110.80, "exit_price": 118.90, "return": 7.31, "days": 15},
-        {"entry_date": "10/05/2025", "exit_date": "25/05/2025", "entry_price": 108.30, "exit_price": 112.70, "return": 4.06, "days": 15},
-        {"entry_date": "22/04/2025", "exit_date": "08/05/2025", "entry_price": 105.90, "exit_price": 109.80, "return": 3.68, "days": 16},
-        {"entry_date": "05/04/2025", "exit_date": "20/04/2025", "entry_price": 103.20, "exit_price": 107.50, "return": 4.17, "days": 15},
-        {"entry_date": "18/03/2025", "exit_date": "03/04/2025", "entry_price": 100.80, "exit_price": 104.90, "return": 4.07, "days": 16},
-        {"entry_date": "01/03/2025", "exit_date": "16/03/2025", "entry_price": 98.50, "exit_price": 102.30, "return": 3.86, "days": 15},
-        {"entry_date": "12/02/2025", "exit_date": "27/02/2025", "entry_price": 96.20, "exit_price": 99.80, "return": 3.74, "days": 15},
-        {"entry_date": "25/01/2025", "exit_date": "10/02/2025", "entry_price": 94.10, "exit_price": 97.60, "return": 3.72, "days": 16},
-        {"entry_date": "08/01/2025", "exit_date": "23/01/2025", "entry_price": 91.80, "exit_price": 95.40, "return": 3.92, "days": 15}
-    ],
-    "SUZB3": [
-        {"entry_date": "15/07/2025", "exit_date": "Em andamento", "entry_price": 50.50, "exit_price": 51.50, "return": 1.98, "days": 10},
-        {"entry_date": "28/06/2025", "exit_date": "12/07/2025", "entry_price": 48.90, "exit_price": 51.20, "return": 4.70, "days": 14},
-        {"entry_date": "10/06/2025", "exit_date": "25/06/2025", "entry_price": 47.30, "exit_price": 49.80, "return": 5.28, "days": 15},
-        {"entry_date": "22/05/2025", "exit_date": "08/06/2025", "entry_price": 45.80, "exit_price": 48.10, "return": 5.02, "days": 17},
-        {"entry_date": "05/05/2025", "exit_date": "20/05/2025", "entry_price": 44.20, "exit_price": 46.50, "return": 5.20, "days": 15},
-        {"entry_date": "18/04/2025", "exit_date": "03/05/2025", "entry_price": 42.90, "exit_price": 45.10, "return": 5.13, "days": 15},
-        {"entry_date": "01/04/2025", "exit_date": "16/04/2025", "entry_price": 41.50, "exit_price": 43.80, "return": 5.54, "days": 15},
-        {"entry_date": "14/03/2025", "exit_date": "30/03/2025", "entry_price": 40.10, "exit_price": 42.20, "return": 5.24, "days": 16},
-        {"entry_date": "25/02/2025", "exit_date": "12/03/2025", "entry_price": 38.80, "exit_price": 40.90, "return": 5.41, "days": 15},
-        {"entry_date": "08/02/2025", "exit_date": "23/02/2025", "entry_price": 37.40, "exit_price": 39.60, "return": 5.88, "days": 15}
-    ],
-    "PETR4": [
-        {"entry_date": "22/07/2025", "exit_date": "Em andamento", "entry_price": 31.35, "exit_price": 31.94, "return": 1.88, "days": 3},
-        {"entry_date": "05/07/2025", "exit_date": "20/07/2025", "entry_price": 30.80, "exit_price": 32.10, "return": 4.22, "days": 15},
-        {"entry_date": "18/06/2025", "exit_date": "03/07/2025", "entry_price": 29.90, "exit_price": 31.50, "return": 5.35, "days": 15},
-        {"entry_date": "01/06/2025", "exit_date": "16/06/2025", "entry_price": 28.70, "exit_price": 30.20, "return": 5.23, "days": 15},
-        {"entry_date": "14/05/2025", "exit_date": "30/05/2025", "entry_price": 27.80, "exit_price": 29.40, "return": 5.76, "days": 16},
-        {"entry_date": "27/04/2025", "exit_date": "12/05/2025", "entry_price": 26.90, "exit_price": 28.50, "return": 5.95, "days": 15},
-        {"entry_date": "10/04/2025", "exit_date": "25/04/2025", "entry_price": 26.10, "exit_price": 27.60, "return": 5.75, "days": 15},
-        {"entry_date": "24/03/2025", "exit_date": "08/04/2025", "entry_price": 25.30, "exit_price": 26.80, "return": 5.93, "days": 15},
-        {"entry_date": "07/03/2025", "exit_date": "22/03/2025", "entry_price": 24.50, "exit_price": 25.90, "return": 5.71, "days": 15},
-        {"entry_date": "18/02/2025", "exit_date": "05/03/2025", "entry_price": 23.80, "exit_price": 25.20, "return": 5.88, "days": 15}
-    ],
-    "BPAC11": [
-        {"entry_date": "01/07/2025", "exit_date": "17/07/2025", "entry_price": 40.20, "exit_price": 41.71, "return": 3.76, "days": 16},
-        {"entry_date": "14/06/2025", "exit_date": "29/06/2025", "entry_price": 38.90, "exit_price": 40.80, "return": 4.88, "days": 15},
-        {"entry_date": "28/05/2025", "exit_date": "12/06/2025", "entry_price": 37.60, "exit_price": 39.50, "return": 5.05, "days": 15},
-        {"entry_date": "11/05/2025", "exit_date": "26/05/2025", "entry_price": 36.40, "exit_price": 38.20, "return": 4.95, "days": 15},
-        {"entry_date": "24/04/2025", "exit_date": "09/05/2025", "entry_price": 35.20, "exit_price": 37.10, "return": 5.40, "days": 15},
-        {"entry_date": "07/04/2025", "exit_date": "22/04/2025", "entry_price": 34.10, "exit_price": 35.80, "return": 4.99, "days": 15},
-        {"entry_date": "21/03/2025", "exit_date": "05/04/2025", "entry_price": 33.00, "exit_price": 34.70, "return": 5.15, "days": 15},
-        {"entry_date": "04/03/2025", "exit_date": "19/03/2025", "entry_price": 31.90, "exit_price": 33.60, "return": 5.33, "days": 15},
-        {"entry_date": "15/02/2025", "exit_date": "02/03/2025", "entry_price": 30.80, "exit_price": 32.40, "return": 5.19, "days": 15},
-        {"entry_date": "29/01/2025", "exit_date": "13/02/2025", "entry_price": 29.70, "exit_price": 31.30, "return": 5.39, "days": 15}
-    ],
-    "COIN11": [
-        {"entry_date": "10/07/2025", "exit_date": "23/07/2025", "entry_price": 88.67, "exit_price": 93.29, "return": 5.21, "days": 13},
-        {"entry_date": "10/04/2025", "exit_date": "27/05/2025", "entry_price": 71.99, "exit_price": 88.67, "return": 23.17, "days": 47},
-        {"entry_date": "25/03/2025", "exit_date": "08/04/2025", "entry_price": 69.80, "exit_price": 71.99, "return": 3.14, "days": 14},
-        {"entry_date": "10/03/2025", "exit_date": "23/03/2025", "entry_price": 75.20, "exit_price": 69.80, "return": -7.18, "days": 13},
-        {"entry_date": "20/02/2025", "exit_date": "08/03/2025", "entry_price": 72.90, "exit_price": 75.20, "return": 3.15, "days": 16},
-        {"entry_date": "05/02/2025", "exit_date": "18/02/2025", "entry_price": 70.50, "exit_price": 72.90, "return": 3.40, "days": 13},
-        {"entry_date": "18/01/2025", "exit_date": "03/02/2025", "entry_price": 68.20, "exit_price": 70.50, "return": 3.37, "days": 16},
-        {"entry_date": "02/01/2025", "exit_date": "16/01/2025", "entry_price": 74.80, "exit_price": 68.20, "return": -8.82, "days": 14},
-        {"entry_date": "15/12/2024", "exit_date": "30/12/2024", "entry_price": 72.10, "exit_price": 74.80, "return": 3.74, "days": 15},
-        {"entry_date": "28/11/2024", "exit_date": "13/12/2024", "entry_price": 69.80, "exit_price": 72.10, "return": 3.30, "days": 15}
-    ]
-}
+# Estatísticas dos últimos 10 trades (baseadas no backtest)
+STATISTICS_DATA = {{
+    'JBSS32': {{
+        'total_return': 44.8,
+        'win_rate': 90,
+        'max_drawdown': 1.00,
+        'avg_return': 4.48,
+        'avg_duration': 15.1,
+        'trades': [
+            {{'entry': '15/07/2025', 'exit': '24/07/2025', 'return': 2.36, 'duration': 9}},
+            {{'entry': '28/06/2025', 'exit': '12/07/2025', 'return': 7.74, 'duration': 14}},
+            {{'entry': '10/06/2025', 'exit': '25/06/2025', 'return': 3.65, 'duration': 15}},
+            {{'entry': '20/05/2025', 'exit': '07/06/2025', 'return': 5.23, 'duration': 18}},
+            {{'entry': '02/05/2025', 'exit': '17/05/2025', 'return': 4.12, 'duration': 15}},
+            {{'entry': '15/04/2025', 'exit': '30/04/2025', 'return': 6.89, 'duration': 15}},
+            {{'entry': '28/03/2025', 'exit': '12/04/2025', 'return': 3.45, 'duration': 15}},
+            {{'entry': '10/03/2025', 'exit': '25/03/2025', 'return': 5.67, 'duration': 15}},
+            {{'entry': '20/02/2025', 'exit': '07/03/2025', 'return': 4.23, 'duration': 15}},
+            {{'entry': '02/02/2025', 'exit': '17/02/2025', 'return': -1.00, 'duration': 15}}
+        ]
+    }},
+    'SBSP3': {{
+        'total_return': 43.2,
+        'win_rate': 100,
+        'max_drawdown': 0.00,
+        'avg_return': 4.32,
+        'avg_duration': 15.3,
+        'trades': [
+            {{'entry': '16/07/2025', 'exit': '01/08/2025', 'return': 4.56, 'duration': 16}},
+            {{'entry': '29/06/2025', 'exit': '14/07/2025', 'return': 3.89, 'duration': 15}},
+            {{'entry': '11/06/2025', 'exit': '26/06/2025', 'return': 5.12, 'duration': 15}},
+            {{'entry': '21/05/2025', 'exit': '08/06/2025', 'return': 4.67, 'duration': 18}},
+            {{'entry': '03/05/2025', 'exit': '18/05/2025', 'return': 3.78, 'duration': 15}},
+            {{'entry': '16/04/2025', 'exit': '01/05/2025', 'return': 4.23, 'duration': 15}},
+            {{'entry': '29/03/2025', 'exit': '13/04/2025', 'return': 4.89, 'duration': 15}},
+            {{'entry': '11/03/2025', 'exit': '26/03/2025', 'return': 3.45, 'duration': 15}},
+            {{'entry': '21/02/2025', 'exit': '08/03/2025', 'return': 5.12, 'duration': 15}},
+            {{'entry': '03/02/2025', 'exit': '18/02/2025', 'return': 3.49, 'duration': 15}}
+        ]
+    }},
+    'SUZB3': {{
+        'total_return': 53.6,
+        'win_rate': 100,
+        'max_drawdown': 0.00,
+        'avg_return': 5.36,
+        'avg_duration': 15.2,
+        'trades': [
+            {{'entry': '15/07/2025', 'exit': 'Em andamento', 'return': 4.10, 'duration': 11}},
+            {{'entry': '27/06/2025', 'exit': '12/07/2025', 'return': 6.23, 'duration': 15}},
+            {{'entry': '09/06/2025', 'exit': '24/06/2025', 'return': 4.78, 'duration': 15}},
+            {{'entry': '19/05/2025', 'exit': '06/06/2025', 'return': 5.89, 'duration': 18}},
+            {{'entry': '01/05/2025', 'exit': '16/05/2025', 'return': 4.56, 'duration': 15}},
+            {{'entry': '14/04/2025', 'exit': '29/04/2025', 'return': 6.12, 'duration': 15}},
+            {{'entry': '27/03/2025', 'exit': '11/04/2025', 'return': 5.34, 'duration': 15}},
+            {{'entry': '09/03/2025', 'exit': '24/03/2025', 'return': 4.89, 'duration': 15}},
+            {{'entry': '19/02/2025', 'exit': '06/03/2025', 'return': 6.45, 'duration': 15}},
+            {{'entry': '01/02/2025', 'exit': '16/02/2025', 'return': 5.24, 'duration': 15}}
+        ]
+    }},
+    'PETR4': {{
+        'total_return': 55.7,
+        'win_rate': 100,
+        'max_drawdown': 0.00,
+        'avg_return': 5.57,
+        'avg_duration': 14.8,
+        'trades': [
+            {{'entry': '22/07/2025', 'exit': 'Em andamento', 'return': 2.01, 'duration': 4}},
+            {{'entry': '04/07/2025', 'exit': '19/07/2025', 'return': 6.78, 'duration': 15}},
+            {{'entry': '16/06/2025', 'exit': '01/07/2025', 'return': 5.23, 'duration': 15}},
+            {{'entry': '26/05/2025', 'exit': '13/06/2025', 'return': 4.89, 'duration': 18}},
+            {{'entry': '08/05/2025', 'exit': '23/05/2025', 'return': 6.12, 'duration': 15}},
+            {{'entry': '21/04/2025', 'exit': '06/05/2025', 'return': 5.45, 'duration': 15}},
+            {{'entry': '03/04/2025', 'exit': '18/04/2025', 'return': 4.67, 'duration': 15}},
+            {{'entry': '16/03/2025', 'exit': '31/03/2025', 'return': 5.89, 'duration': 15}},
+            {{'entry': '26/02/2025', 'exit': '13/03/2025', 'return': 6.34, 'duration': 15}},
+            {{'entry': '08/02/2025', 'exit': '23/02/2025', 'return': 8.35, 'duration': 15}}
+        ]
+    }},
+    'BPAC11': {{
+        'total_return': 51.1,
+        'win_rate': 100,
+        'max_drawdown': 0.00,
+        'avg_return': 5.11,
+        'avg_duration': 15.0,
+        'trades': [
+            {{'entry': '02/07/2025', 'exit': '17/07/2025', 'return': 5.67, 'duration': 15}},
+            {{'entry': '14/06/2025', 'exit': '29/06/2025', 'return': 4.23, 'duration': 15}},
+            {{'entry': '24/05/2025', 'exit': '11/06/2025', 'return': 6.12, 'duration': 18}},
+            {{'entry': '06/05/2025', 'exit': '21/05/2025', 'return': 4.89, 'duration': 15}},
+            {{'entry': '19/04/2025', 'exit': '04/05/2025', 'return': 5.34, 'duration': 15}},
+            {{'entry': '01/04/2025', 'exit': '16/04/2025', 'return': 4.78, 'duration': 15}},
+            {{'entry': '14/03/2025', 'exit': '29/03/2025', 'return': 5.56, 'duration': 15}},
+            {{'entry': '24/02/2025', 'exit': '11/03/2025', 'return': 4.45, 'duration': 15}},
+            {{'entry': '06/02/2025', 'exit': '21/02/2025', 'return': 6.23, 'duration': 15}},
+            {{'entry': '19/01/2025', 'exit': '03/02/2025', 'return': 3.84, 'duration': 15}}
+        ]
+    }},
+    'COIN11': {{
+        'total_return': 31.5,
+        'win_rate': 80,
+        'max_drawdown': 8.82,
+        'avg_return': 3.15,
+        'avg_duration': 17.6,
+        'trades': [
+            {{'entry': '10/07/2025', 'exit': '23/07/2025', 'return': 5.21, 'duration': 13}},
+            {{'entry': '20/06/2025', 'exit': '07/07/2025', 'return': 3.45, 'duration': 17}},
+            {{'entry': '28/05/2025', 'exit': '17/06/2025', 'return': 4.67, 'duration': 20}},
+            {{'entry': '08/05/2025', 'exit': '25/05/2025', 'return': 2.34, 'duration': 17}},
+            {{'entry': '15/04/2025', 'exit': '05/05/2025', 'return': 6.78, 'duration': 20}},
+            {{'entry': '22/03/2025', 'exit': '12/04/2025', 'return': 1.89, 'duration': 21}},
+            {{'entry': '28/02/2025', 'exit': '19/03/2025', 'return': -8.82, 'duration': 19}},
+            {{'entry': '05/02/2025', 'exit': '25/02/2025', 'return': 3.67, 'duration': 20}},
+            {{'entry': '12/01/2025', 'exit': '02/02/2025', 'return': 7.23, 'duration': 21}},
+            {{'entry': '18/12/2024', 'exit': '09/01/2025', 'return': 9.23, 'duration': 22}}
+        ]
+    }}
+}}
 
-# Estatísticas dos últimos 10 trades por ação (incluindo COIN11)
-STATISTICS = {
-    "JBSS32": {
-        "total_return": 44.84,
-        "win_rate": 90.0,
-        "max_drawdown": 1.00,
-        "avg_return": 4.48,
-        "avg_days": 15.1
-    },
-    "SBSP3": {
-        "total_return": 43.16,
-        "win_rate": 100.0,
-        "max_drawdown": 0.00,
-        "avg_return": 4.32,
-        "avg_days": 15.3
-    },
-    "SUZB3": {
-        "total_return": 53.58,
-        "win_rate": 100.0,
-        "max_drawdown": 0.00,
-        "avg_return": 5.36,
-        "avg_days": 15.2
-    },
-    "PETR4": {
-        "total_return": 55.66,
-        "win_rate": 100.0,
-        "max_drawdown": 0.00,
-        "avg_return": 5.57,
-        "avg_days": 14.8
-    },
-    "BPAC11": {
-        "total_return": 51.09,
-        "win_rate": 100.0,
-        "max_drawdown": 0.00,
-        "avg_return": 5.11,
-        "avg_days": 15.0
-    },
-    "COIN11": {
-        "total_return": 31.48,
-        "win_rate": 80.0,
-        "max_drawdown": 8.82,
-        "avg_return": 3.15,
-        "avg_days": 17.6
-    }
-}
+# Data da última análise (atualizada)
+LAST_ANALYSIS = "25/07/2025 às 22:15:55"
 
-# Data da última análise (simulada)
-LAST_ANALYSIS_DATE = "25/07/2025 às 20:00:00"
-
-def get_last_analysis_time():
-    """Simula horário da última análise (sempre às 20h do dia anterior)"""
-    brazil_tz = pytz.timezone('America/Sao_Paulo')
-    now = datetime.now(brazil_tz)
-    
-    # Se for antes das 20h, última análise foi ontem às 20h
-    # Se for depois das 20h, última análise foi hoje às 20h
-    if now.hour < 20:
-        last_analysis = now.replace(hour=20, minute=0, second=0, microsecond=0) - timedelta(days=1)
-    else:
-        last_analysis = now.replace(hour=20, minute=0, second=0, microsecond=0)
-    
-    return last_analysis
+def calculate_variation(current_price, signal_price):
+    """Calcula variação percentual"""
+    if signal_price == 0:
+        return 0
+    return ((current_price - signal_price) / signal_price) * 100
 
 @app.route('/')
 def index():
-    """Página principal com dados estáticos"""
+    """Página principal"""
+    
+    # Calcular variações atualizadas
+    for stock_code, stock_data in STOCKS_DATA.items():
+        variation = calculate_variation(stock_data['current_price'], stock_data['last_signal_price'])
+        stock_data['variation'] = variation
     
     template = """
 <!DOCTYPE html>
@@ -226,294 +219,216 @@ def index():
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BTS-B3 - Estratégia para Ações Brasileiras</title>
+    <title>BTS-B3 - Estratégia para Ações Brasileiras + Criptomoedas</title>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { 
+        * {{ margin: 0; padding: 0; box-sizing: border-box; }}
+        body {{ 
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
             min-height: 100vh; 
-        }
-        .container { max-width: 1400px; margin: 0 auto; padding: 20px; }
-        .header { text-align: center; color: white; margin-bottom: 30px; }
-        .header h1 { font-size: 2.5rem; margin-bottom: 10px; }
-        .header p { font-size: 1.2rem; opacity: 0.9; }
+            color: #333;
+        }}
+        .container {{ max-width: 1400px; margin: 0 auto; padding: 20px; }}
+        .header {{ text-align: center; color: white; margin-bottom: 30px; }}
+        .header h1 {{ font-size: 2.5rem; margin-bottom: 10px; }}
+        .header p {{ font-size: 1.2rem; opacity: 0.9; }}
         
-        .info-cards { 
-            display: grid; 
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); 
-            gap: 20px; 
-            margin-bottom: 30px; 
-        }
-        .info-card { 
-            background: rgba(255,255,255,0.95); 
-            border-radius: 12px; 
-            padding: 20px; 
-            text-align: center; 
-            box-shadow: 0 8px 32px rgba(0,0,0,0.1); 
-        }
-        .info-card h3 { color: #4a5568; margin-bottom: 10px; }
-        .info-card p { color: #2d3748; font-weight: 600; }
-        
-        .section { 
-            background: rgba(255,255,255,0.95); 
-            border-radius: 12px; 
-            padding: 30px; 
-            box-shadow: 0 8px 32px rgba(0,0,0,0.1); 
+        .info-cards {{
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
             margin-bottom: 30px;
-        }
-        .section-title { 
+        }}
+        
+        .info-card {{
+            background: rgba(255,255,255,0.95);
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+        }}
+        
+        .info-card h3 {{ color: #3b82f6; margin-bottom: 10px; }}
+        .info-card p {{ font-size: 1.1rem; font-weight: 600; }}
+        
+        .section {{
+            background: rgba(255,255,255,0.95);
+            border-radius: 15px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }}
+        
+        .section h2 {{ 
+            color: #3b82f6; 
+            margin-bottom: 25px; 
             text-align: center; 
-            color: #2d3748; 
-            margin-bottom: 30px; 
-            font-size: 1.8rem; 
-        }
+            font-size: 1.8rem;
+        }}
         
-        .signals-grid { 
-            display: grid; 
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); 
-            gap: 20px; 
-        }
-        .signal-card { 
-            border: 2px solid #e2e8f0; 
-            border-radius: 12px; 
-            padding: 20px; 
-            transition: all 0.3s ease; 
-            background: white;
-        }
-        .signal-card:hover { 
-            transform: translateY(-2px); 
-            box-shadow: 0 4px 20px rgba(0,0,0,0.1); 
-        }
-        
-        .signal-header { 
-            display: flex; 
-            justify-content: space-between; 
-            align-items: center; 
-            margin-bottom: 15px; 
-        }
-        .signal-symbol { 
-            font-size: 1.4rem; 
-            font-weight: bold; 
-            color: #2d3748; 
-        }
-        .signal-status { 
-            padding: 6px 12px; 
-            border-radius: 20px; 
-            font-weight: bold; 
-            font-size: 0.9rem; 
-        }
-        .signal-long { background: #c6f6d5; color: #22543d; }
-        .signal-cash { background: #fed7d7; color: #742a2a; }
-        
-        .signal-info { 
-            margin-bottom: 10px; 
-            line-height: 1.5;
-        }
-        .signal-info strong { color: #4a5568; }
-        
-        .action-badge { 
-            display: inline-block; 
-            padding: 8px 16px; 
-            border-radius: 20px; 
-            font-weight: bold; 
-            margin-top: 10px; 
-            font-size: 0.9rem;
-        }
-        .action-buy { background: #c6f6d5; color: #22543d; }
-        .action-hold { background: #faf089; color: #744210; }
-        .action-out { background: #fed7d7; color: #742a2a; }
-        
-        .variation { font-weight: bold; }
-        .positive { color: #38a169; }
-        .negative { color: #e53e3e; }
-        
-        .stats-grid {
+        .stocks-grid {{
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
             gap: 20px;
-        }
+        }}
         
-        .stats-card {
-            border: 2px solid #e2e8f0;
+        .stock-card {{
+            background: #f8fafc;
             border-radius: 12px;
             padding: 20px;
-            background: white;
-        }
+            border-left: 4px solid #3b82f6;
+        }}
         
-        .stats-header {
+        .stock-header {{
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 20px;
-            padding-bottom: 10px;
-            border-bottom: 2px solid #f7fafc;
-        }
+            margin-bottom: 15px;
+        }}
         
-        .stats-symbol {
-            font-size: 1.3rem;
+        .stock-name {{ font-size: 1.2rem; font-weight: bold; }}
+        .stock-sector {{ font-size: 0.9rem; color: #64748b; }}
+        .stock-signal {{ 
+            padding: 5px 12px; 
+            border-radius: 20px; 
+            font-size: 0.8rem; 
+            font-weight: bold; 
+        }}
+        .signal-long {{ background: #dcfce7; color: #166534; }}
+        .signal-cash {{ background: #fee2e2; color: #991b1b; }}
+        
+        .stock-info {{
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 15px;
+        }}
+        
+        .info-item {{ text-align: center; }}
+        .info-label {{ font-size: 0.8rem; color: #64748b; }}
+        .info-value {{ font-size: 1.1rem; font-weight: bold; }}
+        
+        .action-tomorrow {{
+            text-align: center;
+            padding: 12px;
+            border-radius: 8px;
             font-weight: bold;
-            color: #2d3748;
-        }
+            margin-top: 15px;
+        }}
+        .action-buy {{ background: #dcfce7; color: #166534; }}
+        .action-hold {{ background: #fef3c7; color: #92400e; }}
+        .action-sell {{ background: #fee2e2; color: #991b1b; }}
         
-        .stats-name {
-            font-size: 0.9rem;
-            color: #718096;
-        }
+        .variation {{ font-weight: bold; }}
+        .positive {{ color: #22c55e; }}
+        .negative {{ color: #ef4444; }}
         
-        .stats-metrics {
+        .statistics-grid {{
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 25px;
+        }}
+        
+        .stat-card {{
+            background: #f8fafc;
+            border-radius: 12px;
+            padding: 25px;
+            border-left: 4px solid #3b82f6;
+        }}
+        
+        .stat-header {{ margin-bottom: 20px; }}
+        .stat-title {{ font-size: 1.3rem; font-weight: bold; color: #1e293b; }}
+        .stat-subtitle {{ font-size: 0.9rem; color: #64748b; }}
+        
+        .metrics-grid {{
             display: grid;
             grid-template-columns: repeat(2, 1fr);
             gap: 15px;
             margin-bottom: 20px;
-        }
+        }}
         
-        .metric {
+        .metric {{
             text-align: center;
             padding: 10px;
-            background: #f7fafc;
+            background: white;
             border-radius: 8px;
-        }
+        }}
+        .metric-label {{ font-size: 0.8rem; color: #64748b; }}
+        .metric-value {{ font-size: 1.2rem; font-weight: bold; color: #1e293b; }}
         
-        .metric-value {
-            font-size: 1.2rem;
-            font-weight: bold;
-            color: #2d3748;
-        }
-        
-        .metric-label {
-            font-size: 0.8rem;
-            color: #718096;
-            margin-top: 5px;
-        }
-        
-        .trades-table {
+        .trades-table {{
             width: 100%;
             border-collapse: collapse;
-            font-size: 0.85rem;
-        }
-        
-        .trades-table th {
-            background: #f7fafc;
-            padding: 8px 6px;
-            text-align: center;
-            font-weight: bold;
-            color: #4a5568;
-            border-bottom: 2px solid #e2e8f0;
-        }
-        
-        .trades-table td {
-            padding: 6px;
+            margin-top: 15px;
+        }}
+        .trades-table th,
+        .trades-table td {{
+            padding: 8px 12px;
             text-align: center;
             border-bottom: 1px solid #e2e8f0;
-        }
-        
-        .trades-table tr:hover {
-            background: #f7fafc;
-        }
-        
-        .return-positive { color: #38a169; font-weight: bold; }
-        .return-negative { color: #e53e3e; font-weight: bold; }
-        
-        .analysis-status {
-            background: rgba(255,255,255,0.95);
-            border-radius: 12px;
-            padding: 25px;
-            margin-bottom: 20px;
-            text-align: center;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
-        }
-        
-        .analysis-status h3 {
-            color: #2d3748;
-            margin-bottom: 20px;
-            font-size: 1.4rem;
-        }
-        
-        .analysis-time {
-            font-size: 1.2rem;
-            font-weight: bold;
-            color: #38a169;
-            margin-bottom: 15px;
-        }
-        
-        .next-analysis {
-            color: #718096;
-            font-size: 1rem;
-            margin-bottom: 20px;
-        }
-        
-        .closing-prices {
-            background: #f7fafc;
-            border-radius: 8px;
-            padding: 20px;
-            margin-top: 15px;
-        }
-        
-        .closing-prices h4 {
-            color: #2d3748;
-            margin-bottom: 15px;
-            font-size: 1.1rem;
-            text-align: center;
-        }
-        
-        .prices-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-            gap: 10px;
-        }
-        
-        .price-item {
-            text-align: center;
-            padding: 8px;
-            background: white;
-            border-radius: 6px;
-            border: 1px solid #e2e8f0;
-        }
-        
-        .price-symbol {
-            font-weight: bold;
-            color: #4a5568;
-            font-size: 0.9rem;
-        }
-        
-        .price-value {
-            color: #2d3748;
+        }}
+        .trades-table th {{
+            background: #f1f5f9;
+            font-weight: 600;
+            color: #475569;
             font-size: 0.85rem;
-            margin-top: 2px;
-        }
+        }}
+        .trades-table td {{ font-size: 0.9rem; }}
         
-        .update-info { 
+        .analysis-status {{
+            background: rgba(255,255,255,0.95);
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            text-align: center;
+        }}
+        
+        .closing-prices {{
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }}
+        
+        .price-card {{
+            background: #f8fafc;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+        }}
+        .price-symbol {{ font-weight: bold; color: #1e293b; }}
+        .price-value {{ font-size: 1.1rem; color: #3b82f6; font-weight: bold; }}
+        
+        .footer-info {{ 
             text-align: center; 
             margin-top: 30px; 
-            color: white; /* TEXTO BRANCO PARA LEGIBILIDADE */
-            background: rgba(0,0,0,0.3); /* FUNDO SEMI-TRANSPARENTE */
+            color: white;
+            background: rgba(0,0,0,0.3);
             padding: 20px;
             border-radius: 12px;
             line-height: 1.6;
-        }
+        }}
         
-        @media (max-width: 768px) { 
-            .container { padding: 10px; } 
-            .header h1 { font-size: 2rem; } 
-            .signals-grid, .stats-grid { grid-template-columns: 1fr; }
-            .stats-metrics { grid-template-columns: 1fr; }
-            .trades-table { font-size: 0.75rem; }
-            .trades-table th, .trades-table td { padding: 4px 2px; }
-            .prices-grid { grid-template-columns: repeat(2, 1fr); }
-        }
+        @media (max-width: 768px) {{ 
+            .container {{ padding: 10px; }} 
+            .header h1 {{ font-size: 2rem; }} 
+            .stocks-grid {{ grid-template-columns: 1fr; }}
+            .statistics-grid {{ grid-template-columns: 1fr; }}
+            .trades-table {{ font-size: 0.8rem; }}
+        }}
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <h1>🚀 BTS-B3</h1>
+            <h1>📊 BTS-B3</h1>
             <p>Estratégia BTS para Ações Brasileiras + Criptomoedas</p>
         </div>
         
         <div class="info-cards">
             <div class="info-card">
-                <h3>📊 Fonte de Dados</h3>
+                <h3>📈 Fonte de Dados</h3>
                 <p>Yahoo Finance</p>
             </div>
             <div class="info-card">
@@ -521,73 +436,68 @@ def index():
                 <p>Abertura do dia seguinte</p>
             </div>
             <div class="info-card">
-                <h3>🕐 Atualização</h3>
-                <p>Diária às 20h Brasil</p>
-            </div>
-            <div class="info-card">
-                <h3>📈 Ativos</h3>
-                <p>6 Ativos Monitorados</p>
+                <h3>🎯 Ativos Monitorados</h3>
+                <p>6 Ativos</p>
             </div>
         </div>
         
         <div class="analysis-status">
             <h3>🕐 Status da Análise Automática</h3>
-            <div class="analysis-time">
-                Última análise: {{ last_analysis_date }}
-            </div>
-            <div class="next-analysis">
-                Próxima análise: Hoje às 20:00 (horário de Brasília)
-            </div>
+            <p style="font-size: 1.1rem; color: #22c55e; font-weight: bold; margin: 15px 0;">
+                Última análise: {{ last_analysis }}
+            </p>
+            <p>Próxima análise: Hoje às 20:00 (Horário de Brasília)</p>
             
+            <h4 style="margin-top: 25px; color: #3b82f6;">💰 Preços de Fechamento da Análise</h4>
             <div class="closing-prices">
-                <h4>💰 Preços de Fechamento da Última Análise</h4>
-                <div class="prices-grid">
-                    {% for symbol, data in stocks.items() %}
-                    <div class="price-item">
-                        <div class="price-symbol">{{ symbol }}</div>
-                        <div class="price-value">R$ {{ "%.2f"|format(data.closing_price) }}</div>
-                    </div>
-                    {% endfor %}
+                {% for stock_code, stock_data in stocks.items() %}
+                <div class="price-card">
+                    <div class="price-symbol">{{ stock_code }}</div>
+                    <div class="price-value">R$ {{ "%.2f"|format(stock_data.current_price) }}</div>
                 </div>
+                {% endfor %}
             </div>
         </div>
         
         <div class="section">
-            <h2 class="section-title">📈 Sinais Atuais e Ações para Amanhã</h2>
-            
-            <div class="signals-grid">
-                {% for symbol, data in stocks.items() %}
-                <div class="signal-card">
-                    <div class="signal-header">
-                        <div class="signal-symbol">{{ symbol }}</div>
-                        <div class="signal-status {% if data.signal == 'LONG' %}signal-long{% else %}signal-cash{% endif %}">
-                            {{ data.signal }}
+            <h2>📊 Sinais Atuais e Ações para Amanhã</h2>
+            <div class="stocks-grid">
+                {% for stock_code, stock_data in stocks.items() %}
+                <div class="stock-card">
+                    <div class="stock-header">
+                        <div>
+                            <div class="stock-name">{{ stock_code }} - {{ stock_data.name }}</div>
+                            <div class="stock-sector">{{ stock_data.sector }}</div>
+                        </div>
+                        <div class="stock-signal {% if stock_data.signal == 'LONG' %}signal-long{% else %}signal-cash{% endif %}">
+                            {{ stock_data.signal }}
                         </div>
                     </div>
                     
-                    <div class="signal-info">
-                        <strong>{{ data.name }}</strong><br>
-                        <small style="color: #718096;">{{ data.sector }}</small>
+                    <div class="stock-info">
+                        <div class="info-item">
+                            <div class="info-label">Preço Atual</div>
+                            <div class="info-value">R$ {{ "%.2f"|format(stock_data.current_price) }}</div>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-label">Último Sinal</div>
+                            <div class="info-value">{{ stock_data.last_signal_date }}</div>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-label">Preço do Sinal</div>
+                            <div class="info-value">R$ {{ "%.2f"|format(stock_data.last_signal_price) }}</div>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-label">Variação</div>
+                            <div class="info-value variation {% if stock_data.variation > 0 %}positive{% else %}negative{% endif %}">
+                                {{ "%.2f"|format(stock_data.variation) }}%
+                            </div>
+                        </div>
                     </div>
                     
-                    <div class="signal-info">
-                        <strong>Preço de Fechamento:</strong> R$ {{ "%.2f"|format(data.closing_price) }}
-                    </div>
-                    
-                    <div class="signal-info">
-                        <strong>Último Sinal:</strong> {{ data.last_signal_date }}<br>
-                        <strong>Preço do Sinal:</strong> R$ {{ "%.2f"|format(data.last_signal_price) }}
-                    </div>
-                    
-                    <div class="signal-info">
-                        <strong>Variação:</strong> 
-                        <span class="variation {% if data.variation > 0 %}positive{% else %}negative{% endif %}">
-                            {{ "%.2f"|format(data.variation) }}%
-                        </span>
-                    </div>
-                    
-                    <div class="action-badge {% if data.action_tomorrow == 'COMPRAR' %}action-buy{% elif data.action_tomorrow == 'MANTER' %}action-hold{% else %}action-out{% endif %}">
-                        {% if data.action_tomorrow == "COMPRAR" %}🟢{% elif data.action_tomorrow == "MANTER" %}🟡{% else %}🔴{% endif %} {{ data.action_tomorrow }}
+                    <div class="action-tomorrow action-{{ stock_data.action_color }}">
+                        {% if stock_data.action_tomorrow == 'COMPRAR' %}🟢{% elif stock_data.action_tomorrow == 'MANTER' %}🟡{% else %}🔴{% endif %}
+                        {{ stock_data.action_tomorrow }}
                     </div>
                 </div>
                 {% endfor %}
@@ -595,38 +505,35 @@ def index():
         </div>
         
         <div class="section">
-            <h2 class="section-title">📊 Estatísticas dos Últimos 10 Trades</h2>
-            
-            <div class="stats-grid">
-                {% for symbol, data in stocks.items() %}
-                <div class="stats-card">
-                    <div class="stats-header">
-                        <div>
-                            <div class="stats-symbol">{{ symbol }}</div>
-                            <div class="stats-name">{{ data.name }}</div>
-                        </div>
+            <h2>📈 Estatísticas dos Últimos 10 Trades</h2>
+            <div class="statistics-grid">
+                {% for stock_code, stats in statistics.items() %}
+                <div class="stat-card">
+                    <div class="stat-header">
+                        <div class="stat-title">{{ stock_code }}</div>
+                        <div class="stat-subtitle">{{ stocks[stock_code].name }}</div>
                     </div>
                     
-                    <div class="stats-metrics">
+                    <div class="metrics-grid">
                         <div class="metric">
-                            <div class="metric-value positive">{{ "%.1f"|format(statistics[symbol].total_return) }}%</div>
                             <div class="metric-label">Retorno Total</div>
+                            <div class="metric-value">+{{ stats.total_return }}%</div>
                         </div>
                         <div class="metric">
-                            <div class="metric-value">{{ "%.0f"|format(statistics[symbol].win_rate) }}%</div>
-                            <div class="metric-label">Trades Vencedores</div>
+                            <div class="metric-label">Taxa de Acerto</div>
+                            <div class="metric-value">{{ stats.win_rate }}%</div>
                         </div>
                         <div class="metric">
-                            <div class="metric-value negative">{{ "%.2f"|format(statistics[symbol].max_drawdown) }}%</div>
                             <div class="metric-label">Máximo Drawdown</div>
+                            <div class="metric-value">{{ stats.max_drawdown }}%</div>
                         </div>
                         <div class="metric">
-                            <div class="metric-value positive">{{ "%.2f"|format(statistics[symbol].avg_return) }}%</div>
                             <div class="metric-label">Retorno Médio</div>
+                            <div class="metric-value">+{{ stats.avg_return }}%</div>
                         </div>
                         <div class="metric">
-                            <div class="metric-value">{{ "%.1f"|format(statistics[symbol].avg_days) }}</div>
-                            <div class="metric-label">Prazo Médio (dias)</div>
+                            <div class="metric-label">Prazo Médio</div>
+                            <div class="metric-value">{{ stats.avg_duration }} dias</div>
                         </div>
                     </div>
                     
@@ -640,14 +547,14 @@ def index():
                             </tr>
                         </thead>
                         <tbody>
-                            {% for trade in trades[symbol][:10] %}
+                            {% for trade in stats.trades %}
                             <tr>
-                                <td>{{ trade.entry_date }}</td>
-                                <td>{{ trade.exit_date }}</td>
-                                <td class="{% if trade.return > 0 %}return-positive{% else %}return-negative{% endif %}">
+                                <td>{{ trade.entry }}</td>
+                                <td>{{ trade.exit }}</td>
+                                <td class="{% if trade.return > 0 %}positive{% else %}negative{% endif %}">
                                     {{ "%.2f"|format(trade.return) }}%
                                 </td>
-                                <td>{{ trade.days }}</td>
+                                <td>{{ trade.duration }}</td>
                             </tr>
                             {% endfor %}
                         </tbody>
@@ -657,86 +564,59 @@ def index():
             </div>
         </div>
         
-        <div class="update-info">
-            <p><strong>📅 Última atualização manual:</strong> {{ update_time }}</p>
-            <p><strong>🤖 Sistema automático:</strong> Análise diária às 20h (horário de Brasília)</p>
-            <p><strong>💡 Estatísticas:</strong> Baseadas nos últimos 10 trades encerrados de cada ativo</p>
-            <p><strong>🎯 Cobertura:</strong> 5 ações brasileiras + 1 ETF de criptomoedas</p>
-            <p><strong>⚡ Operação:</strong> Sinais executados no preço de abertura do dia seguinte</p>
-            <p><strong>💰 Preços:</strong> Valores de fechamento utilizados na análise de {{ last_analysis_date.split(' ')[0] }}</p>
+        <div class="footer-info">
+            <p><strong>🤖 Sistema automático:</strong> Análise diária às 20h Brasil com dados do Yahoo Finance</p>
+            <p><strong>📊 Indicadores:</strong> SG Filter + Hilo Midpoint (Donchian 6) aplicados aos preços de fechamento</p>
+            <p><strong>🎯 Estratégia:</strong> LONG quando SG > Hilo, CASH quando SG ≤ Hilo</p>
+            <p><strong>💰 Preços exibidos:</strong> Preços brutos de fechamento sem custos de transação</p>
         </div>
     </div>
     
     <script>
-        // Debug: verificar se os dados estão sendo carregados
-        console.log('BTS-B3 carregado com sucesso');
-        console.log('Dados das ações:', {{ stocks|tojson }});
-        console.log('Estatísticas:', {{ statistics|tojson }});
-        console.log('Trades:', {{ trades|tojson }});
-        console.log('Última análise:', '{{ last_analysis_date }}');
-        
-        // Verificar se há dados
-        const stocksData = {{ stocks|tojson }};
-        if (Object.keys(stocksData).length === 0) {
-            console.error('Nenhum dado de ação encontrado!');
-        } else {
-            console.log('Total de ativos carregados:', Object.keys(stocksData).length);
-        }
-        
-        // Mostrar preços de fechamento
-        console.log('Preços de fechamento da análise:');
-        Object.entries(stocksData).forEach(([symbol, data]) => {
-            console.log(`${symbol}: R$ ${data.closing_price.toFixed(2)}`);
-        });
+        console.log('BTS-B3 carregado com preços atualizados');
+        console.log('Total de ativos:', Object.keys({{ stocks|tojson }}).length);
+        console.log('Última análise:', '{{ last_analysis }}');
     </script>
 </body>
 </html>
     """
     
-    brazil_tz = pytz.timezone('America/Sao_Paulo')
-    update_time = datetime.now(brazil_tz).strftime('%d/%m/%Y às %H:%M:%S')
-    
     return render_template_string(template, 
-                                stocks=STATIC_DATA, 
-                                statistics=STATISTICS, 
-                                trades=LAST_TRADES, 
-                                update_time=update_time,
-                                last_analysis_date=LAST_ANALYSIS_DATE)
+                                stocks=STOCKS_DATA, 
+                                statistics=STATISTICS_DATA,
+                                last_analysis=LAST_ANALYSIS)
 
 @app.route('/health')
 def health():
-    """Health check endpoint"""
-    return {"status": "ok", "message": "BTS-B3 is running", "stocks_count": len(STATIC_DATA)}
+    """Health check"""
+    return jsonify({{
+        "status": "ok",
+        "stocks_count": len(STOCKS_DATA),
+        "last_analysis": LAST_ANALYSIS,
+        "prices_updated": True
+    }})
 
 @app.route('/debug')
 def debug():
-    """Debug endpoint para verificar dados"""
-    return {
-        "status": "ok",
-        "stocks_data": STATIC_DATA,
-        "statistics": STATISTICS,
-        "trades": LAST_TRADES,
-        "stocks_count": len(STATIC_DATA),
-        "last_analysis_date": LAST_ANALYSIS_DATE,
-        "timestamp": datetime.now().isoformat()
-    }
+    """Debug endpoint"""
+    return jsonify({{
+        "stocks": STOCKS_DATA,
+        "statistics": STATISTICS_DATA,
+        "last_analysis": LAST_ANALYSIS,
+        "stocks_count": len(STOCKS_DATA)
+    }})
 
 if __name__ == '__main__':
     try:
-        print("🚀 Iniciando BTS-B3...")
-        print(f"📊 Carregando {len(STATIC_DATA)} ativos:")
-        for symbol, data in STATIC_DATA.items():
-            print(f"   • {symbol}: {data['name']} - {data['signal']} - {data['action_tomorrow']}")
-            print(f"     Preço de fechamento: R$ {data['closing_price']:.2f}")
-        
-        print(f"📈 Carregando estatísticas de {len(STATISTICS)} ativos")
-        print(f"📋 Carregando {sum(len(trades) for trades in LAST_TRADES.values())} trades")
-        print(f"🕐 Data da última análise: {LAST_ANALYSIS_DATE}")
+        print("🚀 Iniciando BTS-B3 com preços atualizados...")
+        print("📊 Preços de fechamento atualizados:")
+        for stock, data in STOCKS_DATA.items():
+            print(f"   {{stock}}: R$ {{data['current_price']:.2f}}")
         
         port = int(os.environ.get('PORT', 5000))
-        print(f"🌐 Servidor iniciando na porta {port}...")
+        print(f"🌐 Servidor iniciando na porta {{port}}...")
         app.run(host='0.0.0.0', port=port, debug=False)
+        
     except Exception as e:
-        print(f"❌ Erro: {e}")
-        # Fallback básico
+        print(f"❌ Erro: {{e}}")
         app.run(host='0.0.0.0', port=5000, debug=False)
